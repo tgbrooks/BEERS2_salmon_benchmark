@@ -1,0 +1,9 @@
+data/
+results/
+config/generated/
+index/
+logs/
+venv/
+.snakemake/
+*.swp
+*.swa
