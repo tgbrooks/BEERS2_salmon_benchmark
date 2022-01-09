@@ -1,6 +1,8 @@
 import pathlib
 
 sample_ids = [1,2]
+GC_corrects = ['yes', 'no']
+Pos_corrects = ['yes', 'no']
 
 GC_bias = dict(
     none = {
@@ -36,13 +38,17 @@ wildcard_constraints:
     GC_bias = "[A-Za-z]+",
     pos_3prime_bias = "[A-Za-z]+",
     sample = "[0-9]+",
+    GC_correct = "[A-Za-z]+",
+    Pos_correct = "[A-Za-z]+",
 
 rule all:
     input:
-        salmon_quant = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/quant.genes.sf",
+        salmon_quant = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.genes.sf",
                     GC_bias = GC_bias.keys(),
                     pos_3prime_bias=pos_3prime_bias.keys(),
-                    sample = sample_ids),
+                    sample = sample_ids,
+                    GC_correct = GC_corrects,
+                    Pos_correct = Pos_corrects),
         beers_input_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/input_quant.txt",
                     GC_bias = GC_bias.keys(),
                     pos_3prime_bias=pos_3prime_bias.keys(),
@@ -128,17 +134,23 @@ rule run_salmon:
         "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data/",
         "index/baby_mouse"
     output:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/quant.genes.sf",
-        #directory("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}")
+        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.genes.sf",
     params:
-        gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",# TODO: okay to use the full genome gtf?
-        args = "-l A --softclip --softclipOverhangs --seqBias --gcBias --reduceGCMemory --biasSpeedSamp 10 --posBias -p 6"
+        gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",# TODO: okay to use the full genome gtf?,
+        out_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/",
     threads: 6
     resources:
         mem_mb=25000,
     run:
+        args = "-l A --softclip --softclipOverhangs --biasSpeedSamp 10 -p 6"
+        if wildcards.GC_correct == 'yes':
+            args += ' --gcBias'
+        if wildcards.Pos_correct == 'yes':
+            args += ' --posBias'
+        #TODO: handle --seqBias option
         fastqdir=pathlib.Path(input[0])
         if len(list(fastqdir.glob("*_2.fastq")))>0:
-            shell(f"salmon quant -i {input[1]} -g {params.gtf_file} {params.args} -1 {input[0]}/S{wildcards.sample}_*_R1.fastq -2 {input[0]}/S{wildcards.sample}_*_R2.fastq -o {output[1]}")
+            shell(f"salmon quant -i {input[1]} -g {params.gtf_file} {args} -1 {input[0]}/S{wildcards.sample}_*_R1.fastq -2 {input[0]}/S{wildcards.sample}_*_R2.fastq -o {params.out_folder}")
         else:
-            shell(f"salmon quant -i {input[1]} -g {params.gtf_file} {params.args} -r {input[0]}/S{wildcards.sample}_*_R1.fastq -o {output[1]}")
+            shell(f"salmon quant -i {input[1]} -g {params.gtf_file} {args} -r {input[0]}/S{wildcards.sample}_*_R1.fastq -o {params.out_folder}")
+
