@@ -101,13 +101,13 @@
             "from_distribution_data": {
                 "1": {
                     "sample_data_directory": "~/BEERS2/test_data/CAMPAREE_data/sample1/",
-                    "num_molecules_per_packet": 2000,
-                    "num_packets":  1
+                    "num_molecules_per_packet": 500000,
+                    "num_packets":  4
                 },
                 "2": {
                     "sample_data_directory": "~/BEERS2/test_data/CAMPAREE_data/sample2/",
-                    "num_molecules_per_packet": 2000,
-                    "num_packets":  1
+                    "num_molecules_per_packet": 500000,
+                    "num_packets":  4
                 }
             }
         }
