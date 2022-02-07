@@ -69,7 +69,7 @@ rule run_beers:
     params:
         config = "config/generated/config.GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}.json",
     resources:
-        mem_mb = 10_000
+        mem_mb = 40_000
     run:
         #Generate config template
         import string
