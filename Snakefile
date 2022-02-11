@@ -1,5 +1,6 @@
 import pathlib
 import itertools
+import util
 
 sample_ids = [1,2]
 GC_corrects = ['yes', 'no']
@@ -178,11 +179,24 @@ rule gather_quants:
                         GC_bias = GC_bias.keys(),
                         pos_3prime_bias = pos_3prime_bias.keys(),
                         sample=sample_ids),
+        gene_annotations = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
     output:
         salmon = "results/salmon_quants.txt",
         beers_input = "results/beers_input_quants.txt",
         beers_output = "results/beers_output_quants.txt",
     run:
+        # Load transcript ID to gene ID mappings
+        import re
+        transcript_to_gene = {}
+        with open(input.gene_annotations) as annotations:
+            gene_id_re = re.compile(r'gene_id "([a-zA-Z0-9]*)";')
+            transcript_id_re = re.compile(r'transcript_id "([a-zA-Z0-9]*)";')
+            for line in annotations:
+                gene_id = gene_id_re.search(line)
+                transcript_id = transcript_id_re.search(line)
+                if gene_id and transcript_id:
+                    transcript_to_gene[transcript_id.groups()[0]] = gene_id.groups()[0]
+
         import pandas
         salmon_quants = []
         for quant_file, (GC_bias_, pos_3prime_bias_, GC_correct, Pos_correct, sample) in zip(input.salmon_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), GC_corrects, Pos_corrects, sample_ids)):
@@ -196,30 +210,35 @@ rule gather_quants:
             quants['Pos_correct'] = Pos_correct == 'yes'
             salmon_quants.append(quants)
         salmon_quants = pandas.concat(salmon_quants, axis=0)
+        salmon_quants['GeneID'] = salmon_quants.index.map(transcript_to_gene)
         salmon_quants.to_csv(output.salmon, sep="\t")
 
         beers_input_quants = []
         for quant_file, (GC_bias_, pos_3prime_bias_, sample) in zip(input.beers_input_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0, header=None)
-            quants.index.name = "TranscriptID"
+            quants.index.name = "BeersTranscriptID"
             quants.columns = ['count']
             quants['sample'] = sample
             quants['GC_bias'] = GC_bias_
             quants['pos_3prime_bias'] = pos_3prime_bias_
             beers_input_quants.append(quants)
         beers_input_quants = pandas.concat(beers_input_quants, axis=0)
+        beers_input_quants['TranscriptID'] = beers_input_quants.index.map(util.strip_beers_transcript_id)
+        beers_input_quants['GeneID'] = beers_input_quants.TranscriptID.map(transcript_to_gene)
         beers_input_quants.to_csv(output.beers_input, sep="\t")
 
         beers_output_quants = []
         for quant_file, (GC_bias_, pos_3prime_bias_, sample) in zip(input.beers_output_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0, header=None)
-            quants.index.name = "TranscriptID"
+            quants.index.name = "BeersTranscriptID"
             quants.columns = ['count']
             quants['sample'] = sample
             quants['GC_bias'] = GC_bias_
             quants['pos_3prime_bias'] = pos_3prime_bias_
             beers_output_quants.append(quants)
         beers_output_quants = pandas.concat(beers_output_quants, axis=0)
+        beers_output_quants['TranscriptID'] = beers_output_quants.index.map(util.strip_beers_transcript_id)
+        beers_output_quants['GeneID'] = beers_output_quants.TranscriptID.map(transcript_to_gene)
         beers_output_quants.to_csv(output.beers_output, sep="\t")
 
 rule compare_accuracy:
