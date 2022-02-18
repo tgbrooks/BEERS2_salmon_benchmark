@@ -225,6 +225,73 @@ ax = fig.axes_dict[('none', 'none')]
 print("Frac in range:", (d['log_rel_abs_error'].abs() < 2.5).mean())
 fig.savefig(out_dir / "abs_error.compared_to_baseline.by_gene.png", dpi=300)
 
+# Error broken down by bias-amount in the genes
+# We can measure the effect of Salmon's bias-correcting procedures via comparing
+# the EffectiveLength values across the different correction methods
+# Genes with more effect from positional/GC bias correction will
+# then have larger differences in EffectiveLength
+# We break down the genes by the effects of the correction bias to see if
+# genes with more bias-correction are quantified well
+# Also just plot the bias factor distributions
+# See https://github.com/COMBINE-lab/salmon/discussions/752
+
+# For GC bias:
+d = data.copy()
+GC_baseline = d.query("pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['GC_bias', 'sample'])
+GC_corrected = d.query("pos_3prime_bias == 'none' and GC_correct == True and Pos_correct == False").set_index(['GC_bias', 'sample'])
+GC_correction = pandas.DataFrame({
+    "GC_bias_factor":  GC_corrected.EffectiveLength / GC_baseline.EffectiveLength,
+    "rel_abs_error": ((GC_corrected.TPM - GC_corrected.true_tpm) / (GC_baseline.TPM - GC_baseline.true_tpm)).abs(),
+}).reset_index()
+fig = sns.relplot(
+        x = "GC_bias_factor",
+        y = "rel_abs_error",
+        data = GC_correction,
+        col = "sample",
+        row = "GC_bias",
+        kind = "scatter",
+)
+fig.set(ylim=(0.0, 2.0))
+fig.refline(y=1)
+fig.savefig(out_dir / "rel_abs_err.by_GC_bias_factor.png", dpi=300)
+fig = sns.displot(
+        x = "GC_bias_factor",
+        data = GC_correction,
+        col = "sample",
+        hue = "GC_bias",
+        kind = "kde",
+)
+fig.savefig(out_dir / "GC_bias_factor.dist.png", dpi=300)
+
+# Same for Positional bias
+pos_baseline = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['pos_3prime_bias', 'sample'])
+pos_corrected = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == True").set_index(['pos_3prime_bias', 'sample'])
+pos_correction = pandas.DataFrame({
+    "pos_bias_factor":  pos_corrected.EffectiveLength / pos_baseline.EffectiveLength,
+    "rel_abs_error": ((pos_corrected.TPM - pos_corrected.true_tpm) / (pos_baseline.TPM - pos_baseline.true_tpm)).abs(),
+}).reset_index()
+fig = sns.relplot(
+        x = "pos_bias_factor",
+        y = "rel_abs_error",
+        data = pos_correction,
+        col = "sample",
+        row = "pos_3prime_bias",
+        kind = "scatter",
+)
+fig.set(ylim=(0.0, 2.0))
+fig.refline(y=1)
+fig.savefig(out_dir / "rel_abs_err.by_pos_bias_factor.png", dpi=300)
+fig = sns.displot(
+        x = "pos_bias_factor",
+        data = pos_correction,
+        col = "sample",
+        hue = "pos_3prime_bias",
+        kind = "kde",
+)
+fig.savefig(out_dir / "pos_bias_factor.dist.png", dpi=300)
+
+
+
 
 # Generate scatterplot figures
 import pylab
