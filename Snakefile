@@ -46,6 +46,7 @@ wildcard_constraints:
 
 rule all:
     input:
+        "results/seq_bias/fwd_seq_frequencies.png",
         "results/accuracy/",
         "results/salmon_quants.txt",
         "results/gc_summary.txt",
@@ -434,6 +435,27 @@ rule plot_coverage:
         directory("results/coverage/")
     script:
         "scripts/plot_coverage.py"
+
+rule compute_seq_bias:
+    input:
+        flag_file = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+                        GC_bias = GC_bias.keys(),
+                        pos_3prime_bias = pos_3prime_bias.keys(),
+                    ),
+    output:
+        seq_frequencies = "results/seq_bias/seq_frequencies.json",
+    script:
+        "scripts/compute_seq_bias.py"
+
+rule plot_seq_bias:
+    input:
+        seq_frequencies = "results/seq_bias/seq_frequencies.json",
+    output:
+        fwd_frequencies = "results/seq_bias/fwd_seq_frequencies.png",
+        rev_frequencies = "results/seq_bias/rev_seq_frequencies.png",
+    script:
+        "scripts/plot_seq_bias.py"
+
 
 # These rules were included for coverage plot generation but now we go straight from BAM files
 #rule generate_bigwig:
