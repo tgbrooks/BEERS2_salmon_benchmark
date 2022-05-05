@@ -31,9 +31,7 @@
                 "max_lane": 8
             },
             "lanes_to_use": [
-                1,
-                2,
-                8
+                1
             ]
         }
     },
@@ -43,24 +41,19 @@
             {
                 "step_name": "polya_step.PolyAStep",
                 "parameters": {
-                    "min_polya_tail_length": 40,
-                    "min_retention_prob": 0.0,
+                    "min_polya_tail_length": 20,
+                    "min_retention_prob": 1.0,
                     "max_retention_prob": 1.0,
                     "length_retention_prob": 1.0,
-                    "breakpoint_prob_per_base": $breakpoint_prob_per_base,
-                    "min_polya_nontail_length": 40,
-                    "polyanontail_retention_prob": 1.0
+                    "breakpoint_prob_per_base": $breakpoint_prob_per_base
                 }
             },
             {
                 "step_name": "fragment_step.FragmentStep",
                 "parameters": {
-                    "method": "beta",
-                    "lambda": 0.001,
-                    "runtime": 1,
-                    "beta_N": 2,
-                    "beta_A": 5,
-                    "beta_B": 5
+                    "method": "uniform",
+                    "lambda": 0.01,
+                    "runtime": 1
                 }
             },
             {
@@ -90,24 +83,23 @@
                     "gc_bias_constant": $gc_bias_constant,
                     "gc_bias_linear": $gc_bias_linear,
                     "gc_bias_quadratic": $gc_bias_quadratic,
-                    "substitution_rate": 0.001,
-                    "insertion_rate": 0.0001,
-                    "deletion_rate": 0.0001
+                    "substitution_rate": 0.0005,
+                    "insertion_rate": 0.00005,
+                    "deletion_rate": 0.00005
                 }
             }
         ],
         "input": {
-            "directory": "test_data/molecule_packets/",
             "from_distribution_data": {
                 "1": {
-                    "sample_data_directory": "~/BEERS2/test_data/CAMPAREE_data/sample1/",
+                    "sample_data_directory": "${camparee_output}/sample1/",
                     "num_molecules_per_packet": 100000,
-                    "num_packets":  40
+                    "num_packets":  1
                 },
                 "2": {
-                    "sample_data_directory": "~/BEERS2/test_data/CAMPAREE_data/sample2/",
+                    "sample_data_directory": "${camparee_output}/sample2/",
                     "num_molecules_per_packet": 100000,
-                    "num_packets":  40
+                    "num_packets":  1
                 }
             }
         }
@@ -119,7 +111,7 @@
                 "step_name": "bridge_amplification_step.BridgeAmplificationStep",
                 "parameters": {
                     "cycles": 10,
-                    "substitution_rate": 0.01
+                    "substitution_rate": 0.0005
                 }
             },
             {
@@ -128,8 +120,8 @@
                     "forward_is_5_prime": true,
                     "read_length": 100,
                     "paired_ends": true,
-                    "skip_rate": 0.002,
-                    "drop_rate": 0.002
+                    "skip_rate": 0.0005,
+                    "drop_rate": 0.0005
                 }
             }
         ],
@@ -143,7 +135,7 @@
     },
 
     "resources": {
-        "reference_genome_fasta": "resources/baby_genome.mm10.oneline_seqs.fa",
+        "reference_genome_fasta": "$reference_genome",
         "pre_i5_adapter": "AATGATACGGCGACCACCGAGATCTACAC",
         "post_i5_adapter":  "ACACTCTTTCCCTACACGACGCTCTTCCGATCT",
         "pre_i7_adapter": "GATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -151,8 +143,8 @@
     },
 
     "molecule_maker_parameters": {
-        "min_polyA_tail_length": 50,
-        "max_polyA_tail_length": 250
+        "min_polyA_tail_length": 40,
+        "max_polyA_tail_length": 40
     }
 
 }

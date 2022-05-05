@@ -8,6 +8,7 @@ import pylab
 
 bias_order = ["none", "med", "high"]
 correction_type_order = ['GC ', 'Pos', 'GC Pos']
+MIN_NUM_READS = 100
 
 out_dir = pathlib.Path(snakemake.output.dir)
 out_dir.mkdir(exist_ok=True)
@@ -45,8 +46,8 @@ data['salmon_cpm'] = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_c
 gene_data = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct', 'GeneID']).apply(lambda x: x[['TPM', 'NumReads', 'true_count', 'true_tpm']].sum(axis=0)).reset_index()
 
 
-# Summary stats
-# Spearman correlations
+## Summary stats
+## Spearman correlations
 count_corr = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: scipy.stats.spearmanr(x.NumReads, x.true_count, nan_policy='omit')[0])
 tpm_corr = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: scipy.stats.spearmanr(x.TPM, x.true_tpm, nan_policy='omit')[0])
 # Absolute median deviation - log2 scale
@@ -62,69 +63,70 @@ stats = pandas.DataFrame({
     "cpm_abs_med_dev": cpm_abs_med_dev,
 }).reset_index()
 stats.to_csv(out_dir / "summary_stats.txt", sep="\t", index=None)
+stats['bias_correct'] = stats['GC_correct'].map({True: "GC ", False: ""}) + stats['Pos_correct'].map({True: "Pos", False: ""})
 
 # Plot correlation summary stats
-fig = sns.relplot(
+fig = sns.catplot(
     data=stats,
     x="GC_bias",
     y="count_corr",
-    hue="GC_correct",
-    style="Pos_correct",
+    hue="bias_correct",
     col="sample",
     row="pos_3prime_bias",
-    kind="line",
+    kind="bar",
+    row_order=bias_order,
 )
 fig.savefig(out_dir / "count_corr.png", dpi=300)
 
 # Plot TPM correlation summary stats
-fig = sns.relplot(
+fig = sns.catplot(
     data=stats,
     x="GC_bias",
     y="tpm_corr",
-    hue="GC_correct",
-    style="Pos_correct",
+    hue="bias_correct",
     col="sample",
     row="pos_3prime_bias",
-    kind="line",
+    kind="bar",
+    row_order=bias_order,
 )
 fig.savefig(out_dir / "tpm_corr.png", dpi=300)
 
 # Plot abs med dev summary stats
-fig = sns.relplot(
+fig = sns.catplot(
     data=stats,
     x="GC_bias",
     y="count_abs_med_dev",
-    hue="GC_correct",
-    style="Pos_correct",
+    hue="bias_correct",
     col="sample",
     row="pos_3prime_bias",
-    kind="line",
+    kind="bar",
+    row_order=bias_order,
 )
 fig.savefig(out_dir / "count_abs_med_dev.png", dpi=300)
 
 # Plot TPM abs med dev summary stats
-fig = sns.relplot(
+fig = sns.catplot(
     data=stats,
     x="GC_bias",
     y="tpm_abs_med_dev",
-    hue="GC_correct",
-    style="Pos_correct",
+    hue="bias_correct",
     col="sample",
     row="pos_3prime_bias",
-    kind="line",
+    kind="bar",
+    row_order=bias_order,
 )
 fig.savefig(out_dir / "tpm_abs_med_dev.png", dpi=300)
 
 # Plot CPM abs med dev summary stats
-fig = sns.relplot(
+fig = sns.catplot(
     data=stats,
     x="GC_bias",
     y="cpm_abs_med_dev",
-    hue="GC_correct",
-    style="Pos_correct",
+    hue="bias_correct",
     col="sample",
     row="pos_3prime_bias",
-    kind="line",
+    kind="bar",
+    row_order=bias_order,
 )
 fig.savefig(out_dir / "cpm_abs_med_dev.png", dpi=300)
 
@@ -162,38 +164,67 @@ fig = sns.catplot(
     col = "count_type",
     kind = "bar",
 )
+fig.figure.suptitle("Overall counts (in no-bias simulations)")
 fig.savefig(out_dir / "margins.png", dpi=300)
+
+# Plot the total number of simulated reads by the different BEERS bias amounts
+fig = sns.catplot(
+    data = data.query("GC_correct == False and Pos_correct == False").groupby(['GC_bias', 'pos_3prime_bias', 'sample']).sum().reset_index(),
+    x = "GC_bias",
+    y = "true_count",
+    hue = "pos_3prime_bias",
+    col = "sample",
+    kind = "bar",
+    hue_order=bias_order,
+)
+fig.figure.suptitle("BEERS output counts (without bias corrections)")
+fig.savefig(out_dir / "margins.by_bias_amount.png", dpi=300)
+
+# Plot the total number of quantified reads by the different BEERS bias amounts
+fig = sns.catplot(
+    data = data.query("GC_correct == False and Pos_correct == False").groupby(['GC_bias', 'pos_3prime_bias', 'sample']).sum().reset_index(),
+    x = "GC_bias",
+    y = "NumReads",
+    hue = "pos_3prime_bias",
+    col = "sample",
+    kind = "bar",
+    hue_order=bias_order,
+)
+fig.figure.suptitle("Salmon total NumReads (without bias corrections)")
+fig.savefig(out_dir / "margins.salmon.by_bias_amount.png", dpi=300)
+
 
 
 # Compare the 4 salmon runs within each gene
 # Baseline error will be the no-correction runs
 # Compare each to that
-d = data.copy()
-d['abs_error'] = d['TPM'] - d['true_tpm']
-baseline = d.query("GC_correct == False and Pos_correct == False")
-beers_run = ['sample', 'GC_bias', 'pos_3prime_bias', "TranscriptID", "GeneID"]
-d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
-d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
-d['correction type'] = d.apply(lambda x: ('GC ' if x['GC_correct'] else '') + ('Pos' if x['Pos_correct'] else ''), axis=1)
-d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False)")
-
-fig = sns.displot(
-    x = "log_rel_abs_error",
-    data = d,
-    hue = "correction type",
-    row = "GC_bias",
-    col = "pos_3prime_bias",
-    kind = "kde",
-    clip = (-2.5, 2.5),
-    row_order = bias_order,
-    col_order = bias_order,
-    hue_order = correction_type_order,
-    common_norm = False,
-)
-fig.refline(x=0)
-fig.set_axis_labels("log2( |TPM err| / |TPM baseline error|)", "Transcript Density")
-fig.savefig(out_dir / "abs_error.compared_to_baseline.png", dpi=300)
+# Transcript-level:
+#d = data.copy()
+#d['abs_error'] = d['TPM'] - d['true_tpm']
+#baseline = d.query("GC_correct == False and Pos_correct == False")
+#beers_run = ['sample', 'GC_bias', 'pos_3prime_bias', "TranscriptID", "GeneID"]
+#d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
+#d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+#d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
+#d['correction type'] = d.apply(lambda x: ('GC ' if x['GC_correct'] else '') + ('Pos' if x['Pos_correct'] else ''), axis=1)
+#d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False)")
+#
+#fig = sns.displot(
+#    x = "log_rel_abs_error",
+#    data = d,
+#    hue = "correction type",
+#    row = "GC_bias",
+#    col = "pos_3prime_bias",
+#    kind = "kde",
+#    clip = (-2.5, 2.5),
+#    row_order = bias_order,
+#    col_order = bias_order,
+#    hue_order = correction_type_order,
+#    common_norm = False,
+#)
+#fig.refline(x=0)
+#fig.set_axis_labels("log2( |TPM err| / |TPM baseline error|)", "Transcript Density")
+#fig.savefig(out_dir / "abs_error.compared_to_baseline.png", dpi=300)
 
 # Same as above but gene-level
 d = gene_data.copy()
@@ -237,82 +268,99 @@ fig.savefig(out_dir / "abs_error.compared_to_baseline.by_gene.png", dpi=300)
 
 # For GC bias:
 d = data.copy()
-GC_baseline = d.query("pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['GC_bias', 'sample'])
-GC_corrected = d.query("pos_3prime_bias == 'none' and GC_correct == True and Pos_correct == False").set_index(['GC_bias', 'sample'])
+GC_baseline = d.query("pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['GC_bias', 'sample', 'TranscriptID'])
+GC_corrected = d.query("pos_3prime_bias == 'none' and GC_correct == True and Pos_correct == False").set_index(['GC_bias', 'sample', 'TranscriptID'])
 GC_correction = pandas.DataFrame({
     "GC_bias_factor":  GC_corrected.EffectiveLength / GC_baseline.EffectiveLength,
     "rel_abs_error": ((GC_corrected.TPM - GC_corrected.true_tpm) / (GC_baseline.TPM - GC_baseline.true_tpm)).abs(),
+    "baseline_num_reads": GC_baseline.NumReads,
+    "log10_baseline_num_reads": numpy.log10(GC_baseline.NumReads + 1),
 }).reset_index()
 fig = sns.relplot(
         x = "GC_bias_factor",
         y = "rel_abs_error",
-        data = GC_correction,
+        size = "log10_baseline_num_reads",
+        data = GC_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
         col = "sample",
         row = "GC_bias",
+        row_order=bias_order,
         kind = "scatter",
+        #kind = "kde",
+        #common_norm = False,
 )
 fig.set(ylim=(0.0, 2.0))
 fig.refline(y=1)
 fig.savefig(out_dir / "rel_abs_err.by_GC_bias_factor.png", dpi=300)
 fig = sns.displot(
         x = "GC_bias_factor",
-        data = GC_correction,
+        data = GC_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
         col = "sample",
         hue = "GC_bias",
+        hue_order=bias_order,
         kind = "kde",
+        common_norm = False,
 )
 fig.savefig(out_dir / "GC_bias_factor.dist.png", dpi=300)
 
 # Same for Positional bias
-pos_baseline = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['pos_3prime_bias', 'sample'])
-pos_corrected = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == True").set_index(['pos_3prime_bias', 'sample'])
+pos_baseline = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == False").set_index(['pos_3prime_bias', 'sample', 'TranscriptID'])
+pos_corrected = d.query("GC_bias == 'none' and GC_correct == False and Pos_correct == True").set_index(['pos_3prime_bias', 'sample', 'TranscriptID'])
 pos_correction = pandas.DataFrame({
     "pos_bias_factor":  pos_corrected.EffectiveLength / pos_baseline.EffectiveLength,
     "rel_abs_error": ((pos_corrected.TPM - pos_corrected.true_tpm) / (pos_baseline.TPM - pos_baseline.true_tpm)).abs(),
+    "baseline_num_reads": pos_baseline.NumReads,
+    "log10_baseline_num_reads": numpy.log10(pos_baseline.NumReads + 1),
 }).reset_index()
 fig = sns.relplot(
         x = "pos_bias_factor",
         y = "rel_abs_error",
-        data = pos_correction,
+        size = "log10_baseline_num_reads",
+        data = pos_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
         col = "sample",
         row = "pos_3prime_bias",
+        row_order=bias_order,
         kind = "scatter",
+        #kind = "kde",
+        #common_norm = False,
 )
 fig.set(ylim=(0.0, 2.0))
 fig.refline(y=1)
 fig.savefig(out_dir / "rel_abs_err.by_pos_bias_factor.png", dpi=300)
 fig = sns.displot(
         x = "pos_bias_factor",
-        data = pos_correction,
+        data = pos_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
         col = "sample",
         hue = "pos_3prime_bias",
+        hue_order=bias_order,
         kind = "kde",
+        common_norm = False,
 )
 fig.savefig(out_dir / "pos_bias_factor.dist.png", dpi=300)
 
 
 
 
-# Generate scatterplot figures
-import pylab
-import math
-for measure in ['tpm', 'count']:
-    truth_var = {"count": "true_count", "tpm": "true_tpm"}[measure]
-    quant_var = {"count": "NumReads", "tpm": "TPM"}[measure]
-    for sample in data['sample'].unique():
-        by_study = data[data['sample'] == sample].set_index(["GC_bias", "pos_3prime_bias", "GC_correct", "Pos_correct"])
-        conditions = by_study.index.unique()
-        N_COLS = 4
-        N_ROWS = math.ceil(len(conditions) / N_COLS)
-        fig, axes = pylab.subplots(nrows=N_ROWS, ncols=N_COLS, figsize=(20,20), sharex=True, sharey=True)
-        for condition, ax in zip(conditions, axes.flatten()):
-            cond_data = by_study.loc[condition]
-            ax.loglog(cond_data[truth_var], cond_data[quant_var], color="k", linestyle='', marker='o')
-            #ax.set_aspect(1.0)
-            ax.set_title(condition)
-        for ax in axes[-1,:]:
-            ax.set_xlabel("True")
-        for ax in axes[:,0]:
-            ax.set_ylabel("Est.")
-        #fig.tight_layout()
-        fig.savefig(f"{snakemake.output.dir}/{measure}.scatter.sample{sample}.png", dpi=150)
+## Generate scatterplot figures
+# NOTE: these aren't so useful for the full genome
+#import pylab
+#import math
+#for measure in ['tpm', 'count']:
+#    truth_var = {"count": "true_count", "tpm": "true_tpm"}[measure]
+#    quant_var = {"count": "NumReads", "tpm": "TPM"}[measure]
+#    for sample in data['sample'].unique():
+#        by_study = data[data['sample'] == sample].set_index(["GC_bias", "pos_3prime_bias", "GC_correct", "Pos_correct"])
+#        conditions = by_study.index.unique()
+#        N_COLS = 4
+#        N_ROWS = math.ceil(len(conditions) / N_COLS)
+#        fig, axes = pylab.subplots(nrows=N_ROWS, ncols=N_COLS, figsize=(20,20), sharex=True, sharey=True)
+#        for condition, ax in zip(conditions, axes.flatten()):
+#            cond_data = by_study.loc[condition]
+#            ax.loglog(cond_data[truth_var], cond_data[quant_var], color="k", linestyle='', marker='o')
+#            #ax.set_aspect(1.0)
+#            ax.set_title(condition)
+#        for ax in axes[-1,:]:
+#            ax.set_xlabel("True")
+#        for ax in axes[:,0]:
+#            ax.set_ylabel("Est.")
+#        #fig.tight_layout()
+#        fig.savefig(f"{snakemake.output.dir}/{measure}.scatter.sample{sample}.png", dpi=150)
