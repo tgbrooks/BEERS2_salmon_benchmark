@@ -75,6 +75,7 @@ fig = sns.catplot(
     row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
+    order=bias_order,
 )
 fig.savefig(out_dir / "count_corr.png", dpi=300)
 
@@ -88,6 +89,7 @@ fig = sns.catplot(
     row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
+    order=bias_order,
 )
 fig.savefig(out_dir / "tpm_corr.png", dpi=300)
 
@@ -101,6 +103,7 @@ fig = sns.catplot(
     row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
+    order=bias_order,
 )
 fig.savefig(out_dir / "count_abs_med_dev.png", dpi=300)
 
@@ -114,6 +117,7 @@ fig = sns.catplot(
     row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
+    order=bias_order,
 )
 fig.savefig(out_dir / "tpm_abs_med_dev.png", dpi=300)
 
@@ -127,6 +131,7 @@ fig = sns.catplot(
     row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
+    order=bias_order,
 )
 fig.savefig(out_dir / "cpm_abs_med_dev.png", dpi=300)
 
@@ -176,6 +181,7 @@ fig = sns.catplot(
     col = "sample",
     kind = "bar",
     hue_order=bias_order,
+    order=bias_order,
 )
 fig.figure.suptitle("BEERS output counts (without bias corrections)")
 fig.savefig(out_dir / "margins.by_bias_amount.png", dpi=300)
@@ -189,6 +195,7 @@ fig = sns.catplot(
     col = "sample",
     kind = "bar",
     hue_order=bias_order,
+    order=bias_order,
 )
 fig.figure.suptitle("Salmon total NumReads (without bias corrections)")
 fig.savefig(out_dir / "margins.salmon.by_bias_amount.png", dpi=300)
