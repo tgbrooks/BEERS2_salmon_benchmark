@@ -5,10 +5,15 @@ import itertools
 import pandas
 import numpy
 
+from run_configs import run_configs
+
 data_dir = pathlib.Path(snakemake.params.beers_output_data_folder)
 print(data_dir)
 
 transcript_id_re = re.compile(r"_(ENSMUST[0-9]+)_")
+
+bins = numpy.linspace(0,1, 101)
+bins[-1] = 1.001 # make it right-inclusive on the last bin
 
 results = []
 for sample in snakemake.params.samples:
@@ -16,6 +21,7 @@ for sample in snakemake.params.samples:
     print(f"Processing {fastq_files}")
     for fastq_file in fastq_files:
         print("Processing", fastq_file)
+        counts_by_bin = numpy.zeros_like(bins, dtype=int)
         with open(fastq_file) as fastq:
             id = None
             i = 0
@@ -30,13 +36,16 @@ for sample in snakemake.params.samples:
                 GC_content = (seq.count('C') + seq.count('G') + seq.count('N')/2) / len(seq)
                 fastq.readline() # + -- skip
                 fastq.readline() # quality -- skip
-                results.append({
-                    "GC_bias": snakemake.wildcards.GC_bias,
-                    "pos_3prime_bias": snakemake.wildcards.pos_3prime_bias,
-                    "sample": sample,
-                    "TranscriptID": transcript_id, 
-                    "GC_content": GC_content,
-                })
-GC_content = pandas.DataFrame(results)
-GC_by_transcript = GC_content.groupby(["GC_bias", "pos_3prime_bias", "sample", "TranscriptID"]).GC_content.mean()
-GC_by_transcript.reset_index().to_csv(snakemake.output.gc_content, sep="\t")
+                bin_ = numpy.searchsorted(bins, GC_content)
+                counts_by_bin[bin_] += 1
+    results.append(pandas.DataFrame({
+        "run": snakemake.wildcards.run,
+        "GC_bias": run_configs[snakemake.wildcards.run]['GC_bias'],
+        "pos_3prime_bias": run_configs[snakemake.wildcards.run]['pos_3prime_bias'],
+        "primer_bias": run_configs[snakemake.wildcards.run]['primer_bias'],
+        "sample": sample,
+        "GC_content": bins,
+        "count": counts_by_bin,
+    }))
+GC_content = pandas.concat(results, axis=0)
+GC_content.to_csv(snakemake.output.gc_content, sep="\t", index=False)

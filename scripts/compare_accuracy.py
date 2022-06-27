@@ -6,8 +6,11 @@ import pandas
 import seaborn as sns
 import pylab
 
+from run_configs import run_configs, sample_ids, lanes_used
+
 bias_order = ["none", "med", "high"]
-correction_type_order = ['GC ', 'Pos', 'GC Pos']
+run_order = run_configs.keys()
+correction_type_order = ['', 'GC ', 'Pos ', 'GC Pos ', 'Seq', 'GC Seq', 'Pos Seq', 'GC Pos Seq']
 MIN_NUM_READS = 100
 
 out_dir = pathlib.Path(snakemake.output.dir)
@@ -20,13 +23,13 @@ beers_out = pandas.read_csv(snakemake.input.beers_out, sep="\t")
 # Merge the two alleles and pre/post mRNA together
 # BEERS transcript ids are {sample}_{trancriptId}_{allele} and then maybe additional comments (particularly '_pre_mRNA')
 #beers_in['allele'] = beers_in.TranscriptID.apply(lambda x: x.split('_')[2])
-beers_in = beers_in.groupby(['TranscriptID', 'GeneID', 'sample', 'GC_bias', 'pos_3prime_bias']).sum().reset_index()
+beers_in = beers_in.groupby(['TranscriptID', 'GeneID', 'run', 'sample', 'GC_bias', 'pos_3prime_bias', "primer_bias"]).sum().reset_index()
 beers_in.rename(columns={"count": "BEERS_input_count"}, inplace=True)
 
-beers_out = beers_out.groupby(['TranscriptID', 'GeneID', 'sample', 'GC_bias', 'pos_3prime_bias']).sum().reset_index()
+beers_out = beers_out.groupby(['TranscriptID', 'GeneID', 'run', 'sample', 'GC_bias', 'pos_3prime_bias', "primer_bias"]).sum().reset_index()
 
 # input molecule counts give the underlying true TPM, after normalizing
-true_tpm = beers_in.set_index(["TranscriptID", "GeneID"]).groupby(['sample', 'GC_bias', 'pos_3prime_bias']).apply(lambda x: 1e6*x['BEERS_input_count'] / x['BEERS_input_count'].sum()).reset_index()
+true_tpm = beers_in.set_index(["TranscriptID", "GeneID"]).groupby(['run', 'sample', 'GC_bias', 'pos_3prime_bias', "primer_bias"]).apply(lambda x: 1e6*x['BEERS_input_count'] / x['BEERS_input_count'].sum()).reset_index()
 true_tpm.rename(columns={"BEERS_input_count": "true_tpm"}, inplace=True)
 
 # output molecules from BEERS give the true fragment counts
@@ -34,26 +37,26 @@ true_counts = beers_out.copy()
 true_counts.rename(columns={"count": "true_count"}, inplace=True)
 
 # Join with the Salmon quantified values
-data = pandas.merge(salmon, true_tpm, on=['sample', 'GC_bias', 'pos_3prime_bias', 'TranscriptID', 'GeneID'])
-data = pandas.merge(data, true_counts, on=['sample', 'GC_bias', 'pos_3prime_bias', 'TranscriptID', 'GeneID'])
-data = pandas.merge(data, beers_in, on=['sample', 'GC_bias', 'pos_3prime_bias', 'TranscriptID', 'GeneID'])
+data = pandas.merge(salmon, true_tpm, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
+data = pandas.merge(data, true_counts, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
+data = pandas.merge(data, beers_in, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
 
 # Compute CPM values
-data['true_cpm'] = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct'])['true_count'].apply( lambda x: x / x.sum() * 1_000_000)
-data['salmon_cpm'] = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct'])['NumReads'].apply( lambda x: x / x.sum() * 1_000_000)
+data['true_cpm'] = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct'])['true_count'].apply( lambda x: x / x.sum() * 1_000_000)
+data['salmon_cpm'] = data.groupby(['sample','run',  'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct'])['NumReads'].apply( lambda x: x / x.sum() * 1_000_000)
 
 # Sum all transcripts in a gene to get gene-level data
-gene_data = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct', 'GeneID']).apply(lambda x: x[['TPM', 'NumReads', 'true_count', 'true_tpm']].sum(axis=0)).reset_index()
+gene_data = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'GeneID']).apply(lambda x: x[['TPM', 'NumReads', 'true_count', 'true_tpm']].sum(axis=0)).reset_index()
 
 
 ## Summary stats
 ## Spearman correlations
-count_corr = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: scipy.stats.spearmanr(x.NumReads, x.true_count, nan_policy='omit')[0])
-tpm_corr = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: scipy.stats.spearmanr(x.TPM, x.true_tpm, nan_policy='omit')[0])
+count_corr = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct']).apply(lambda x: scipy.stats.spearmanr(x.NumReads, x.true_count, nan_policy='omit')[0])
+tpm_corr = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct']).apply(lambda x: scipy.stats.spearmanr(x.TPM, x.true_tpm, nan_policy='omit')[0])
 # Absolute median deviation - log2 scale
-count_abs_med_dev = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: numpy.abs(numpy.log2((x['NumReads'] + 1) / (x['true_count']+1))).median())
-tpm_abs_med_dev = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: numpy.abs(numpy.log2((x['TPM'] + 1) / (x['true_tpm']+1))).median())
-cpm_abs_med_dev = data.groupby(['sample', 'GC_bias', 'pos_3prime_bias', 'GC_correct', 'Pos_correct']).apply(lambda x: numpy.abs(numpy.log2((x['salmon_cpm'] + 1) / (x['true_cpm']+1))).median())
+count_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct']).apply(lambda x: numpy.abs(numpy.log2((x['NumReads'] + 1) / (x['true_count']+1))).median())
+tpm_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct']).apply(lambda x: numpy.abs(numpy.log2((x['TPM'] + 1) / (x['true_tpm']+1))).median())
+cpm_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct']).apply(lambda x: numpy.abs(numpy.log2((x['salmon_cpm'] + 1) / (x['true_cpm']+1))).median())
 
 stats = pandas.DataFrame({
     "count_corr": count_corr,
@@ -63,16 +66,15 @@ stats = pandas.DataFrame({
     "cpm_abs_med_dev": cpm_abs_med_dev,
 }).reset_index()
 stats.to_csv(out_dir / "summary_stats.txt", sep="\t", index=None)
-stats['bias_correct'] = stats['GC_correct'].map({True: "GC ", False: ""}) + stats['Pos_correct'].map({True: "Pos", False: ""})
+stats['bias_correct'] = stats['GC_correct'].map({True: "GC ", False: ""}) + stats['Pos_correct'].map({True: "Pos ", False: ""}) + stats["Seq_correct"].map({True: "Seq", False: ""})
 
 # Plot correlation summary stats
 fig = sns.catplot(
     data=stats,
-    x="GC_bias",
+    x="run",
     y="count_corr",
     hue="bias_correct",
     col="sample",
-    row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
     order=bias_order,
@@ -82,11 +84,10 @@ fig.savefig(out_dir / "count_corr.png", dpi=300)
 # Plot TPM correlation summary stats
 fig = sns.catplot(
     data=stats,
-    x="GC_bias",
+    x="run",
     y="tpm_corr",
     hue="bias_correct",
     col="sample",
-    row="pos_3prime_bias",
     kind="bar",
     row_order=bias_order,
     order=bias_order,

@@ -52,17 +52,35 @@
                 "step_name": "fragment_step.FragmentStep",
                 "parameters": {
                     "method": "uniform",
-                    "lambda": 0.01,
+                    "lambda": 0.005,
                     "runtime": 1
                 }
             },
             {
                 "step_name": "first_strand_synthesis_step.FirstStrandSynthesisStep",
-                "parameters": {}
+                "parameters": {
+                    "position_probability_matrix": {
+                         "A": [0.50, 0.10, 0.40, 0.30, 0.25, 0.10],
+                         "C": [0.20, 0.50, 0.30, 0.25, 0.25, 0.15],
+                         "G": [0.15, 0.10, 0.15, 0.25, 0.25, 0.20],
+                         "T": [0.15, 0.30, 0.15, 0.20, 0.25, 0.50]
+                    },
+                    "primes_per_kb": 50,
+                    "perfect_priming": $perfect_priming
+                }
             },
             {
                 "step_name": "second_strand_synthesis_step.SecondStrandSynthesisStep",
-                "parameters": {}
+                "parameters": {
+                    "position_probability_matrix": {
+                         "A": [0.50, 0.10, 0.40, 0.30, 0.25, 0.10],
+                         "C": [0.20, 0.50, 0.30, 0.25, 0.25, 0.15],
+                         "G": [0.15, 0.10, 0.15, 0.25, 0.25, 0.20],
+                         "T": [0.15, 0.30, 0.15, 0.20, 0.25, 0.50]
+                    },
+                    "primes_per_kb": 5,
+                    "perfect_priming": $perfect_priming
+                }
             },
             {
                 "step_name": "sizing_step.SizingStep",

@@ -8,6 +8,8 @@ import pandas
 import matplotlib.patches as patches
 from dna_features_viewer import GraphicFeature, GraphicRecord
 
+from run_configs import run_configs
+
 outdir = pathlib.Path(snakemake.output[0])
 outdir.mkdir(exist_ok=True)
 
@@ -24,9 +26,8 @@ gtf_path = "/home/thobr/BEERS2/CAMPAREE/resources/baby_genome.mm10/baby_genome.m
 #gtf_path = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.renamed_chromes.gtf"
 #gtf_path = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf"
 bam_paths = {
-    (gc_bias, pos_bias): f"data/GC_bias={gc_bias}.pos_3prime_bias={pos_bias}/sample1/BEERS_output.bam"
-        for gc_bias in ['none', 'med', 'high']
-        for pos_bias in ['none', 'med', 'high']
+    run: f"data/{run}/sample1/BEERS_output.bam"
+        for run in run_configs.keys()
 }
 
 class CustomGTF(cb.GTF):
@@ -140,10 +141,10 @@ bams = {index: BAMDepth(bam_path) for index, bam_path in bam_paths.items()}
 
 frame =  cb.XAxis() + gtf_gene + cb.TrackHeight(2) + gtf_transcripts + cb.TrackHeight(5) + cb.XAxis()
 #for ((gc_bias, pos_bias), (fwd_bw, rev_bw)) in bws.items():
-for ((gc_bias, pos_bias), bam) in bams.items():
+for (run, bam) in bams.items():
     frame += bam
     #frame += fwd_bw
-    frame += cb.Title(f"GC_bias: {gc_bias}\nPos bias: {pos_bias}")
+    frame += cb.Title(run)
     #frame += cb.Color('#000000')
     frame += cb.MinValue(0)
     frame += cb.MaxValue(bam.fetch_data(genome_range).score.max())

@@ -2,19 +2,20 @@ import pathlib
 import json
 import numpy
 
+from run_configs import run_configs
+
 pathlib.Path('results/seq_bias/').mkdir(exist_ok=True)
 biases = ['none', 'med', 'high']
 
 #TODO: just the first lane? If we use multiple lanes, they won't all be represented here
-sam_paths = {(GC_bias, pos_3prime_bias): f"data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data/S1_L1.sam"
-                    for GC_bias in biases
-                    for pos_3prime_bias in biases}
+sam_paths = {(run): f"data/{run}/beers/run_run1/controller/data/S1_L1.sam"
+                    for run in run_configs.keys()}
 
 BASES = ['A', 'C', 'G', 'T']
 COMPLEMENT_BASES = ['T', 'G', 'C', 'A']
 READ_LENGTH = 100
 results = []
-for (GC_bias, pos_3prime_bias), sam_path in sam_paths.items():
+for run, sam_path in sam_paths.items():
     fwd_count_matrix = numpy.zeros((4, READ_LENGTH))
     rev_count_matrix = numpy.zeros((4, READ_LENGTH))
     num_molecules = 0
@@ -36,9 +37,11 @@ for (GC_bias, pos_3prime_bias), sam_path in sam_paths.items():
             if not rev_read:
                 num_molecules += 1
     results.append({ 
-            "GC_bias": GC_bias,
-            "pos_3prime_bias": pos_3prime_bias,
-            # TODO: multiple samples?
+            "run": run,
+            "GC_bias": run_configs[run]['GC_bias'],
+            "pos_3prime_bias": run_configs[run]['pos_3prime_bias'],
+            "primer_bias": run_configs[run]['primer_bias'],
+            "sample": 1, # TODO: multiple samples?
             # Frequencies of bases by position for the forward read
             "fwd_frequencies": {base: list(fwd_count_matrix[i] / num_molecules) for i, base in enumerate(BASES)},
             # Frequencies of bases by position for the reverse read

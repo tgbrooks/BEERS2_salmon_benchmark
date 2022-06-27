@@ -2,84 +2,58 @@ import pathlib
 import itertools
 import util
 
-sample_ids = [1,2]
+from run_configs import run_configs, sample_ids, lanes_used
+
+RCLONE_REMOTE = "aws_igv_data" # Must first run `rclone config` and set up a remote with this name for uploading trackhubs to
+BUCKET_NAME = "itmat.igv.data" # Bucket to upload to with rclone for trackhubs
+
+#CAMPAREE_CONFIG = 'config/camparee_config.yaml'
+CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
+
+run_ids = run_configs.keys()
+
 GC_corrects = ['yes', 'no']
 Pos_corrects = ['yes', 'no']
-lanes_used = [1]
-
-GC_bias = dict(
-    none = {
-        "gc_bias_constant": 1.0,
-        "gc_bias_linear": 0.0,
-        "gc_bias_quadratic": 0.0,
-    },
-    med = {
-        "gc_bias_constant": 1.0,
-        "gc_bias_linear": 0.0,
-        "gc_bias_quadratic": -10,
-    },
-    high = {
-        "gc_bias_constant": 1.0,
-        "gc_bias_linear": 0.0,
-        "gc_bias_quadratic": -50,
-    },
-)
-
-pos_3prime_bias = dict(
-    none = {
-        "breakpoint_prob_per_base": 0.0,
-    },
-    med = {
-        "breakpoint_prob_per_base": 0.0002,
-    },
-    high = {
-        "breakpoint_prob_per_base": 0.001,
-    },
-)
+Seq_corrects = ['yes', 'no']
 
 wildcard_constraints:
-    GC_bias = "[A-Za-z]+",
-    pos_3prime_bias = "[A-Za-z]+",
+    run = "[A-Za-z_0-9]+",
     sample = "[0-9]+",
     GC_correct = "[A-Za-z]+",
     Pos_correct = "[A-Za-z]+",
+    Seq_corrct = "[A-Za-z]+",
 
 rule all:
     input:
         "results/seq_bias/fwd_seq_frequencies.png",
         "results/accuracy/",
         "results/salmon_quants.txt",
-        "results/gc_summary.txt",
         "results/gc_content/",
         "results/coverage/",
         "/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/",
         # For comparison, align just a few with STAR
-        "data/GC_bias=none.pos_3prime_bias=none/sample1/STAR/",
-        "data/GC_bias=high.pos_3prime_bias=high/sample1/STAR/",
-        salmon_quant = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.sf",
-                    GC_bias = GC_bias.keys(),
-                    pos_3prime_bias=pos_3prime_bias.keys(),
-                    sample = sample_ids,
-                    GC_correct = GC_corrects,
-                    Pos_correct = Pos_corrects),
-        beers_input_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/input_quant.txt",
-                    GC_bias = GC_bias.keys(),
-                    pos_3prime_bias=pos_3prime_bias.keys(),
+        "data/unbiased/sample1/STAR/",
+        "data/all_bias/sample1/STAR/",
+        "results/igv/url.txt",
+        #salmon_quant = expand("data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.sf",
+        #            run = run_ids,
+        #            sample = sample_ids,
+        #            GC_correct = GC_corrects,
+        #            Pos_correct = Pos_corrects),
+        beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
+                    run = run_ids,
                     sample = sample_ids),
-        beers_output_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/output_quant.txt",
-                    GC_bias = GC_bias.keys(),
-                    pos_3prime_bias=pos_3prime_bias.keys(),
+        beers_output_quants = expand("data/{run}/sample{sample}/output_quant.txt",
+                    run = run_ids,
                     sample = sample_ids),
-        beers_output_bam = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam",
-                    GC_bias = GC_bias.keys(),
-                    pos_3prime_bias=pos_3prime_bias.keys(),
+        beers_output_bam = expand("data/{run}/sample{sample}/BEERS_output.bam",
+                    run = run_ids,
                     sample = sample_ids),
         #renamed_gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.renamed_chromes.gtf",
 
 rule run_CAMPAREE:
     input:
-        #'config/camparee_config.yaml',
-        'config/baby_genome.camparee_config.yaml',
+        CAMPAREE_CONFIG
     output:
         directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'),
     params:
@@ -96,10 +70,10 @@ rule run_beers:
         #reference_genome = "/project/itmatlab/for_tom/BEERS2_benchmark/resources/mm10/Mus_musculus.GRCm38.dna.oneline_seqs.fa", # Full genome
         reference_genome = "/home/thobr/BEERS2/CAMPAREE/resources/baby_genome.mm10/baby_genome.mm10.oneline_seqs.fa", # Baby genome
     output:
-        flag_file = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag"
+        flag_file = "data/{run}/beers/finished_flag"
     params:
-        beers_dir = directory("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/"),
-        config = "config/generated/config.GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}.json",
+        beers_dir = directory("data/{run}/beers/"),
+        config = "data/{run}/beers.config.json",
     resources:
         mem_mb = 18_000
     run:
@@ -107,8 +81,7 @@ rule run_beers:
         import string
         config_template = string.Template(open(input.config_template, "r").read())
         config_fill_values = dict()
-        config_fill_values.update(GC_bias[wildcards.GC_bias])
-        config_fill_values.update(pos_3prime_bias[wildcards.pos_3prime_bias])
+        config_fill_values.update(run_configs[wildcards.run])
         config_fill_values['camparee_output'] = input.camparee_output
         config_fill_values['output_dir'] = params.beers_dir +"/run"
         config_fill_values['reference_genome'] = input.reference_genome
@@ -116,19 +89,19 @@ rule run_beers:
         with open(params.config, "w") as f:
             f.write(config)
         # Run beers
-        beers_cmd =  f"run_beers.py -c {params.config} -r 1 -d -m serial prep_and_sequence_pipeline"
+        beers_cmd =  f"run_beers.py -c {params.config} -r 1 --force_overwrite -d -m serial prep_and_sequence_pipeline"
         print(beers_cmd)
         shell(beers_cmd)
         shell("touch {output.flag_file}")
 
 rule get_beers_quant_files:
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+        "data/{run}/beers/finished_flag",
     params:
-        beers_dir = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/",
+        beers_dir = "data/{run}/beers/",
     output:
-        input_quants = expand("data/GC_bias={{GC_bias}}.pos_3prime_bias={{pos_3prime_bias}}/sample{sample}/input_quant.txt", sample=sample_ids),
-        output_quants = expand("data/GC_bias={{GC_bias}}.pos_3prime_bias={{pos_3prime_bias}}/sample{sample}/output_quant.txt", sample=sample_ids),
+        input_quants = expand("data/{{run}}/sample{sample}/input_quant.txt", sample=sample_ids),
+        output_quants = expand("data/{{run}}/sample{sample}/output_quant.txt", sample=sample_ids),
     run:
         import pandas
         # Sum the quantification files provided by beers per packet and then demultiplex by sample
@@ -180,11 +153,11 @@ rule strip_polya_tails:
     # Since we believe that excess simulated PolyA tail could be throwing off Salmon,
     # this step can be used to remove it. However, it did not appear to improve Salmon
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+        "data/{run}/beers/finished_flag",
     output:
-        directory("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers_no_polya/"),
+        directory("data/{run}/beers_no_polya/"),
     params:
-        data_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data",
+        data_folder = "data/{run}/beers/run_run1/controller/data",
     resources:
         mem_mb = 6_000
     run:
@@ -214,15 +187,15 @@ rule strip_polya_tails:
 
 rule run_salmon:
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+        "data/{run}/beers/finished_flag",
         #"index/baby_mouse"
     output:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.sf",
+        "data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}/quant.sf",
     params:
-        beers_dir = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/",
-        data_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data",
+        beers_dir = "data/{run}/beers/",
+        data_folder = "data/{run}/beers/run_run1/controller/data",
         gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
-        out_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/",
+        out_folder = "data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}/",
         index = "/project/itmatlab/index/SALMON-1.4.0_indexes/Mus_musculus.GRCm38.75/Mus_musculus.GRCm38.75/",
     threads: 6
     resources:
@@ -233,25 +206,25 @@ rule run_salmon:
             args += ' --gcBias'
         if wildcards.Pos_correct == 'yes':
             args += ' --posBias'
+        if wildcards.Seq_correct == 'yes':
+            args += ' --seqBias'
         #TODO: handle --seqBias option
         shell(f"salmon quant -i {params.index} -g {params.gtf_file} {args} -1 {params.data_folder}/S{wildcards.sample}_*_R1.fastq -2 {params.data_folder}/S{wildcards.sample}_*_R2.fastq -o {params.out_folder}")
 
 
 rule gather_quants:
     input:
-        salmon_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.sf",
-                        GC_bias = GC_bias.keys(),
-                        pos_3prime_bias = pos_3prime_bias.keys(),
+        salmon_quants = expand("data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}/quant.sf",
+                        run = run_ids,
                         GC_correct = GC_corrects,
                         Pos_correct = Pos_corrects,
+                        Seq_correct = Seq_corrects,
                         sample = sample_ids),
-        beers_input_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/input_quant.txt",
-                        GC_bias = GC_bias.keys(),
-                        pos_3prime_bias = pos_3prime_bias.keys(),
+        beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
+                        run = run_ids,
                         sample=sample_ids),
-        beers_output_quants = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/output_quant.txt",
-                        GC_bias = GC_bias.keys(),
-                        pos_3prime_bias = pos_3prime_bias.keys(),
+        beers_output_quants = expand("data/{run}/sample{sample}/output_quant.txt",
+                        run = run_ids,
                         sample=sample_ids),
         gene_annotations = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
     output:
@@ -275,26 +248,31 @@ rule gather_quants:
 
         import pandas
         salmon_quants = []
-        for quant_file, (GC_bias_, pos_3prime_bias_, GC_correct, Pos_correct, sample) in zip(input.salmon_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), GC_corrects, Pos_corrects, sample_ids)):
+        for quant_file, (run, GC_correct, Pos_correct, Seq_correct, sample) in zip(input.salmon_quants, itertools.product(run_ids, GC_corrects, Pos_corrects, Seq_corrects, sample_ids), strict=True):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
             #Name	Length	EffectiveLength	TPM	NumReads
             quants.index.name = "TranscriptID"
-            quants['GC_bias'] = GC_bias_
+            quants['run'] = run
+            quants['GC_bias'] = run_configs[run]['GC_bias']
+            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            quants['primer_bias'] = run_configs[run]['primer_bias']
             quants['sample'] = sample
-            quants['pos_3prime_bias'] = pos_3prime_bias_
             quants['GC_correct'] = GC_correct == 'yes'
             quants['Pos_correct'] = Pos_correct == 'yes'
+            quants['Seq_correct'] = Seq_correct == 'yes'
             salmon_quants.append(quants)
         salmon_quants = pandas.concat(salmon_quants, axis=0)
         salmon_quants['GeneID'] = salmon_quants.index.map(transcript_to_gene)
         salmon_quants.to_csv(output.salmon, sep="\t")
 
         beers_input_quants = []
-        for quant_file, (GC_bias_, pos_3prime_bias_, sample) in zip(input.beers_input_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), sample_ids)):
+        for quant_file, (run, sample) in zip(input.beers_input_quants, itertools.product(run_ids, sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
+            quants['run'] = run
             quants['sample'] = sample
-            quants['GC_bias'] = GC_bias_
-            quants['pos_3prime_bias'] = pos_3prime_bias_
+            quants['GC_bias'] = run_configs[run]['GC_bias']
+            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            quants['primer_bias'] = run_configs[run]['primer_bias']
             beers_input_quants.append(quants)
         beers_input_quants = pandas.concat(beers_input_quants, axis=0)
         beers_input_quants['TranscriptID'] = beers_input_quants.index.map(util.strip_beers_transcript_id)
@@ -302,11 +280,13 @@ rule gather_quants:
         beers_input_quants.to_csv(output.beers_input, sep="\t")
 
         beers_output_quants = []
-        for quant_file, (GC_bias_, pos_3prime_bias_, sample) in zip(input.beers_output_quants, itertools.product(GC_bias.keys(), pos_3prime_bias.keys(), sample_ids)):
+        for quant_file, (run, sample) in zip(input.beers_output_quants, itertools.product(run_ids, sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
+            quants['run'] = run
             quants['sample'] = sample
-            quants['GC_bias'] = GC_bias_
-            quants['pos_3prime_bias'] = pos_3prime_bias_
+            quants['GC_bias'] = run_configs[run]['GC_bias']
+            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            quants['primer_bias'] = run_configs[run]['primer_bias']
             beers_output_quants.append(quants)
         beers_output_quants = pandas.concat(beers_output_quants, axis=0)
         beers_output_quants['TranscriptID'] = beers_output_quants.index.map(util.strip_beers_transcript_id)
@@ -327,13 +307,11 @@ rule compare_accuracy:
 
 rule compute_gc_content:
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag"
+        "data/{run}/beers/finished_flag"
     output:
-        gc_content = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/gc_content.txt",
+        gc_content = "data/{run}/gc_content.txt",
     params:
-        beers_output_data_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data",
-        GC_biases = list(GC_bias.keys()),
-        pos_3prime_biases = list(pos_3prime_bias.keys()),
+        beers_output_data_folder = "data/{run}/beers/run_run1/controller/data",
         samples = sample_ids,
     resources:
         mem_mb = 18_000,
@@ -342,13 +320,9 @@ rule compute_gc_content:
 
 rule gather_gc_content:
     input:
-        gc_content = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/gc_content.txt", GC_bias=GC_bias.keys(), pos_3prime_bias=pos_3prime_bias.keys())
+        gc_content = expand("data/{run}/gc_content.txt", run = run_ids),
     output:
         gc_content = "results/gc_content.txt",
-        gc_summary = "results/gc_summary.txt"
-    params:
-        GC_biases = GC_bias.keys(),
-        pos_3prime_bias = pos_3prime_bias.keys()
     run:
         import pandas
         import numpy
@@ -357,19 +331,11 @@ rule gather_gc_content:
             d = pandas.read_csv(gc_content, sep="\t")
             res.append(d)
         data = pandas.concat(res)
-        data.to_csv(output.gc_content, index=False)
-
-        bins = numpy.linspace(0,1, 101)
-        bins[-1] = 1.001 # make it right-inclusive on the last bin
-        def get_GC_content(data):
-            distribution,_ = numpy.histogram(data.GC_content, bins)
-            return pandas.Series(distribution / numpy.sum(distribution), index=bins[:-1])
-        GC_summary = data.groupby(["GC_bias", "pos_3prime_bias", "sample"]).apply(get_GC_content)
-        GC_summary.to_csv(output.gc_summary, sep="\t")
+        data.to_csv(output.gc_content, index=False, sep="\t")
 
 rule plot_gc_content:
     input:
-        gc_summary = "results/gc_summary.txt",
+        gc_summary = "results/gc_content.txt",
     output:
         directory("results/gc_content/")
     script:
@@ -377,12 +343,12 @@ rule plot_gc_content:
 
 rule run_STAR:
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+        "data/{run}/beers/finished_flag",
     output:
-        out_dir = directory("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/STAR/"),
+        out_dir = directory("data/{run}/sample{sample}/STAR/"),
     params:
-        beers_dir = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/",
-        data_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data",
+        beers_dir = "data/{run}/beers/",
+        data_folder = "data/{run}/beers/run_run1/controller/data",
         gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
         index = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/",
     threads: 6
@@ -401,11 +367,11 @@ rule run_STAR:
 
 rule generate_BAM:
     input:
-        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
+        "data/{run}/beers/finished_flag",
     output:
-        bam = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam",
+        bam = "data/{run}/sample{sample}/BEERS_output.bam",
     params:
-        data_folder = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/run_run1/controller/data",
+        data_folder = "data/{run}/beers/run_run1/controller/data",
     run:
         import uuid
         tmpdir = pathlib.Path(resources.tmpdir) / str(uuid.uuid4())
@@ -419,17 +385,16 @@ rule generate_BAM:
 
 rule generate_BAI:
     input:
-        bam = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam",
+        bam = "data/{run}/sample{sample}/BEERS_output.bam",
     output:
-        bai = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam.bai",
+        bai = "data/{run}/sample{sample}/BEERS_output.bam.bai",
     shell:
         "samtools index -b {input} {output}"
 
 rule plot_coverage:
     input:
-        bams = expand('data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam',
-                        GC_bias = GC_bias.keys(),
-                        pos_3prime_bias = pos_3prime_bias.keys(),
+        bams = expand('data/{run}/sample{sample}/BEERS_output.bam',
+                        run = run_ids,
                         sample = sample_ids),
     output:
         directory("results/coverage/")
@@ -438,9 +403,8 @@ rule plot_coverage:
 
 rule compute_seq_bias:
     input:
-        flag_file = expand("data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/beers/finished_flag",
-                        GC_bias = GC_bias.keys(),
-                        pos_3prime_bias = pos_3prime_bias.keys(),
+        flag_file = expand("data/{run}/beers/finished_flag",
+                        run = run_ids,
                     ),
     output:
         seq_frequencies = "results/seq_bias/seq_frequencies.json",
@@ -485,3 +449,71 @@ rule plot_seq_bias:
 #                        output_gtf.write("chrM" + line[2:])
 #                    else:
 #                        output_gtf.write("chr" + line)
+
+rule make_igv_view:
+    input:
+        bams = expand("data/{run}/sample{sample}/BEERS_output.bam", run=run_ids, sample=sample_ids),
+        bais = expand("data/{run}/sample{sample}/BEERS_output.bam.bai", run=run_ids, sample=sample_ids),
+        #chrom_sizes = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/chrNameLength.txt",
+        camparee_config = CAMPAREE_CONFIG
+    output:
+        "results/igv/url.txt",
+    params:
+        out_dir = "results/igv/",
+    run:
+        import gzip
+        out_dir = pathlib.Path(params.out_dir)
+        out_dir.mkdir(exist_ok=True)
+
+        import yaml
+        camparee_config = yaml.safe_load(open(input.camparee_config))
+        genome_dir = pathlib.Path(camparee_config['resources']['directory_path']) / camparee_config['resources']['species_model']
+        genome_file = genome_dir /camparee_config['resources']['reference_genome_filename']
+
+        genome_index_file = pathlib.Path("results/igv/genome.fai")
+        if not genome_index_file.exists():
+            shell(f"samtools faidx -o {genome_index_file} {genome_file}")
+
+        print("Uploading to bucket via rclone")
+        BUCKET_DIR = f"BEERS2_SALMON_BENCHMARK/DATA"
+        rclone_cmd = f"rclone copyto {genome_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa"
+        print(rclone_cmd)
+        shell(rclone_cmd)
+        rclone_cmd = f"rclone copyto {genome_index_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai"
+        print(rclone_cmd)
+        shell(rclone_cmd)
+
+        for run in run_ids:
+            for sample_id in sample_ids:
+                rclone_cmd = f"rclone copy data/{run}/sample{sample_id}/BEERS_output.bam {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/"
+                print(rclone_cmd)
+                shell(rclone_cmd)
+                rclone_cmd = f"rclone copy data/{run}/sample{sample_id}/BEERS_output.bam.bai {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/"
+                print(rclone_cmd)
+                shell(rclone_cmd)
+
+        session = {
+            "genome": {
+                 "fastaURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa",
+                 "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai",
+            },
+            "tracks": [
+                {
+                    "type": "alignment",
+                    "name": f"{run_id}.sample{sample_id}",
+                    "format": "bed",
+                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/BEERS_output.bam",
+                    "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/BEERS_output.bam.bai",
+                }
+                for run_id in run_ids
+                for sample_id in sample_ids
+            ],
+        }
+        with open("results/igv/session.json", "w") as session_file:
+            json.dump(session, session_file)
+        rclone_cmd = f"rclone copyto results/igv/session.json {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/session.json"
+        print(rclone_cmd)
+        shell(rclone_cmd)
+
+        # Write out the URL of the trackhub for easy use in the genome browser
+        (out_dir / "url.txt").write_text(f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/session.json\n")
