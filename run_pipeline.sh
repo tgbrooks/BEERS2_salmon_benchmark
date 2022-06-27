@@ -15,4 +15,4 @@ source venv/bin/activate
 
 bsub -e logs/snakemake.err \
      -o logs/snakemake.out \
-     snakemake --profile lsf -j 50 -c 50
+     snakemake --profile lsf -j 50 -c 50 "$@"
