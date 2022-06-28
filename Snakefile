@@ -474,6 +474,8 @@ rule make_igv_view:
         if not genome_index_file.exists():
             shell(f"samtools faidx -o {genome_index_file} {genome_file}")
 
+        genome_gtf = (genome_dir / camparee_config['resources']['annotation_filename']).with_suffix(".gtf")
+
         print("Uploading to bucket via rclone")
         BUCKET_DIR = f"BEERS2_SALMON_BENCHMARK/DATA"
         rclone_cmd = f"rclone copyto {genome_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa"
@@ -482,6 +484,10 @@ rule make_igv_view:
         rclone_cmd = f"rclone copyto {genome_index_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai"
         print(rclone_cmd)
         shell(rclone_cmd)
+        if genome_gtf.exists():
+            rclone_cmd = f"rclone copyto {genome_gtf} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf"
+            print(rclone_cmd)
+            shell(rclone_cmd)
 
         for run in run_ids:
             for sample_id in sample_ids:
@@ -492,10 +498,21 @@ rule make_igv_view:
                 print(rclone_cmd)
                 shell(rclone_cmd)
 
+        # Generate the session object - it tells IGV.js how to load everything we generated
         session = {
             "genome": {
                  "fastaURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa",
                  "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai",
+                 "tracks": [
+                    {
+                        "name": "Genes",
+                        "type": "annotation",
+                        "format": "gtf",
+                        "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf",
+                        "nameField": "gene_id",
+                        "altColor": "rgb(0,100,100)",
+                    },
+                ],
             },
             "tracks": [
                 {
