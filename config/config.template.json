@@ -111,12 +111,12 @@
             "from_distribution_data": {
                 "1": {
                     "sample_data_directory": "${camparee_output}/sample1/",
-                    "num_molecules_per_packet": 100000,
+                    "num_molecules_per_packet": 50000,
                     "num_packets":  1
                 },
                 "2": {
                     "sample_data_directory": "${camparee_output}/sample2/",
-                    "num_molecules_per_packet": 100000,
+                    "num_molecules_per_packet": 50000,
                     "num_packets":  1
                 }
             }
