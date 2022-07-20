@@ -519,8 +519,8 @@ rule make_igv_view:
                     "type": "alignment",
                     "name": f"{run_id}.sample{sample_id}",
                     "format": "bed",
-                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/BEERS_output.bam",
-                    "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run}/sample{sample_id}/BEERS_output.bam.bai",
+                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run_id}/sample{sample_id}/BEERS_output.bam",
+                    "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run_id}/sample{sample_id}/BEERS_output.bam.bai",
                 }
                 for run_id in run_ids
                 for sample_id in sample_ids
