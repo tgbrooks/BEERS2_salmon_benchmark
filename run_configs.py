@@ -69,12 +69,28 @@ pos_3prime_bias = dict(
     },
 )
 
+position_probability_matrix = {
+    "none": '''
+                         "A": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+                         "C": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+                         "G": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25],
+                         "T": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+''',
+    "high": '''
+                         "A": [0.50, 0.10, 0.40, 0.30, 0.25, 0.10],
+                         "C": [0.20, 0.50, 0.30, 0.25, 0.25, 0.15],
+                         "G": [0.15, 0.10, 0.15, 0.25, 0.25, 0.20],
+                         "T": [0.15, 0.30, 0.15, 0.20, 0.25, 0.50]
+'''
+}
 primer_bias = dict(
     none = {
-        "perfect_priming": "true",
+        "perfect_priming": "false",
+        "position_probability_matrix": position_probability_matrix["none"],
     },
     high = {
         "perfect_priming": "false",
+        "position_probability_matrix": position_probability_matrix["high"],
     },
 )
 
