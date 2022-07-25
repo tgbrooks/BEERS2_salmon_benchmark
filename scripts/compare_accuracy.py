@@ -10,7 +10,6 @@ from run_configs import run_configs, sample_ids, lanes_used
 
 bias_order = ["none", "med", "high"]
 run_order = run_configs.keys()
-correction_type_order = ['', 'GC ', 'Pos ', 'GC Pos ', 'Seq', 'GC Seq', 'Pos Seq', 'GC Pos Seq']
 MIN_NUM_READS = 100
 
 out_dir = pathlib.Path(snakemake.output.dir)
@@ -40,14 +39,22 @@ true_counts.rename(columns={"count": "true_count"}, inplace=True)
 data = pandas.merge(salmon, true_tpm, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
 data = pandas.merge(data, true_counts, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
 data = pandas.merge(data, beers_in, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
+print(data.head())
 
 # Compute CPM values
 data['true_cpm'] = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct'])['true_count'].apply( lambda x: x / x.sum() * 1_000_000)
 data['salmon_cpm'] = data.groupby(['sample','run',  'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct'])['NumReads'].apply( lambda x: x / x.sum() * 1_000_000)
 
 # Sum all transcripts in a gene to get gene-level data
-gene_data = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'GeneID']).apply(lambda x: x[['TPM', 'NumReads', 'true_count', 'true_tpm']].sum(axis=0)).reset_index()
+gene_data = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'GeneID']).apply(lambda x: x[['TPM', 'salmon_cpm', 'NumReads', 'true_count', 'true_tpm', 'true_cpm']].sum(axis=0)).reset_index()
 
+correction_type_order = ['baseline', 'GC', 'Pos', 'GC Pos', 'Seq', 'GC Seq', 'Pos Seq', 'GC Pos Seq']
+def correction_type(row):
+    ''' Summarize all Salmon correction options in one string '''
+    corrections = [correction for correction in ['GC', 'Pos', 'Seq'] if row[f'{correction}_correct']]
+    if corrections:
+        return ' '.join(corrections)
+    return 'baseline'
 
 ## Summary stats
 ## Spearman correlations
@@ -70,89 +77,66 @@ stats['bias_correct'] = stats['GC_correct'].map({True: "GC ", False: ""}) + stat
 
 # Plot correlation summary stats
 fig = sns.catplot(
-    data=stats,
-    x="run",
+    data=stats.query("sample == 1"),
+    x="bias_correct",
     y="count_corr",
-    hue="bias_correct",
-    col="sample",
+    col="run",
+    col_wrap=3,
+    col_order=run_order,
     kind="bar",
-    row_order=bias_order,
-    order=bias_order,
 )
 fig.savefig(out_dir / "count_corr.png", dpi=300)
 
 # Plot TPM correlation summary stats
 fig = sns.catplot(
-    data=stats,
-    x="run",
+    data=stats.query("sample == 1"),
+    x="bias_correct",
     y="tpm_corr",
-    hue="bias_correct",
-    col="sample",
+    col="run",
+    col_wrap=3,
+    col_order=run_order,
     kind="bar",
-    row_order=bias_order,
-    order=bias_order,
 )
 fig.savefig(out_dir / "tpm_corr.png", dpi=300)
 
 # Plot abs med dev summary stats
 fig = sns.catplot(
-    data=stats,
-    x="GC_bias",
+    data=stats.query("sample == 1"),
+    x="bias_correct",
     y="count_abs_med_dev",
-    hue="bias_correct",
-    col="sample",
-    row="pos_3prime_bias",
+    col="run",
+    col_wrap=3,
+    col_order=run_order,
     kind="bar",
-    row_order=bias_order,
-    order=bias_order,
 )
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
 fig.savefig(out_dir / "count_abs_med_dev.png", dpi=300)
 
 # Plot TPM abs med dev summary stats
 fig = sns.catplot(
-    data=stats,
-    x="GC_bias",
+    data=stats.query("sample == 1"),
+    x="bias_correct",
     y="tpm_abs_med_dev",
-    hue="bias_correct",
-    col="sample",
-    row="pos_3prime_bias",
+    col="run",
+    col_wrap=3,
+    col_order=run_order,
     kind="bar",
-    row_order=bias_order,
-    order=bias_order,
 )
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
 fig.savefig(out_dir / "tpm_abs_med_dev.png", dpi=300)
 
 # Plot CPM abs med dev summary stats
 fig = sns.catplot(
-    data=stats,
-    x="GC_bias",
+    data=stats.query("sample == 1"),
+    x="bias_correct",
     y="cpm_abs_med_dev",
-    hue="bias_correct",
-    col="sample",
-    row="pos_3prime_bias",
+    col="run",
+    col_wrap=3,
+    col_order = run_order,
     kind="bar",
-    row_order=bias_order,
-    order=bias_order,
 )
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
 fig.savefig(out_dir / "cpm_abs_med_dev.png", dpi=300)
-
-
-#  Plot in the no-bias no-correction case the effect of length on counts
-d = data.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False")
-fig = sns.relplot(
-    data = d.melt(
-        id_vars = ["sample", "Length"],
-        value_vars = ["NumReads", "true_count", "BEERS_input_count"],
-        var_name = "count_type",
-        value_name = "count",
-    ).reset_index().query("count > 0"),
-    x = "Length",
-    y = "count",
-    hue = "count_type",
-    col = "sample",
-)
-fig.set(yscale="log")
-fig.savefig(out_dir /  "no_bias.length_effect.png", dpi=300)
 
 # Plot the total number of reads by the different methods (i.e. the margins)
 margins = data.melt(
@@ -171,98 +155,152 @@ fig = sns.catplot(
     kind = "bar",
 )
 fig.figure.suptitle("Overall counts (in no-bias simulations)")
+fig.tight_layout()
 fig.savefig(out_dir / "margins.png", dpi=300)
 
 # Plot the total number of simulated reads by the different BEERS bias amounts
 fig = sns.catplot(
-    data = data.query("GC_correct == False and Pos_correct == False").groupby(['GC_bias', 'pos_3prime_bias', 'sample']).sum().reset_index(),
-    x = "GC_bias",
+    data = data.query("GC_correct == False and Pos_correct == False and Seq_correct == False").groupby(['run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'sample']).sum().reset_index(),
+    x = "run",
     y = "true_count",
-    hue = "pos_3prime_bias",
     col = "sample",
     kind = "bar",
-    hue_order=bias_order,
-    order=bias_order,
+    order=run_order,
 )
-fig.figure.suptitle("BEERS output counts (without bias corrections)")
+fig.figure.suptitle("BEERS output counts")
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
+fig.tight_layout()
 fig.savefig(out_dir / "margins.by_bias_amount.png", dpi=300)
 
 # Plot the total number of quantified reads by the different BEERS bias amounts
 fig = sns.catplot(
-    data = data.query("GC_correct == False and Pos_correct == False").groupby(['GC_bias', 'pos_3prime_bias', 'sample']).sum().reset_index(),
-    x = "GC_bias",
+    data = data.query("GC_correct == False and Pos_correct == False and Seq_correct == False").groupby(['run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'sample']).sum().reset_index(),
+    x = "run",
     y = "NumReads",
-    hue = "pos_3prime_bias",
     col = "sample",
     kind = "bar",
-    hue_order=bias_order,
-    order=bias_order,
+    order=run_order,
 )
 fig.figure.suptitle("Salmon total NumReads (without bias corrections)")
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
+fig.tight_layout()
 fig.savefig(out_dir / "margins.salmon.by_bias_amount.png", dpi=300)
 
 
 
-# Compare the 4 salmon runs within each gene
+# Compare the salmon runs within each gene
 # Baseline error will be the no-correction runs
 # Compare each to that
-# Transcript-level:
-#d = data.copy()
-#d['abs_error'] = d['TPM'] - d['true_tpm']
-#baseline = d.query("GC_correct == False and Pos_correct == False")
-#beers_run = ['sample', 'GC_bias', 'pos_3prime_bias', "TranscriptID", "GeneID"]
-#d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-#d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
-#d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
-#d['correction type'] = d.apply(lambda x: ('GC ' if x['GC_correct'] else '') + ('Pos' if x['Pos_correct'] else ''), axis=1)
-#d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False)")
-#
-#fig = sns.displot(
-#    x = "log_rel_abs_error",
-#    data = d,
-#    hue = "correction type",
-#    row = "GC_bias",
-#    col = "pos_3prime_bias",
-#    kind = "kde",
-#    clip = (-2.5, 2.5),
-#    row_order = bias_order,
-#    col_order = bias_order,
-#    hue_order = correction_type_order,
-#    common_norm = False,
-#)
-#fig.refline(x=0)
-#fig.set_axis_labels("log2( |TPM err| / |TPM baseline error|)", "Transcript Density")
-#fig.savefig(out_dir / "abs_error.compared_to_baseline.png", dpi=300)
-
-# Same as above but gene-level
-d = gene_data.copy()
+# TPM Transcript-level:
+d = data.copy()
 d['abs_error'] = d['TPM'] - d['true_tpm']
-baseline = d.query("GC_correct == False and Pos_correct == False")
-beers_run = ['sample', 'GC_bias', 'pos_3prime_bias', "GeneID"]
+baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
+beers_run = ['sample', 'run', 'TranscriptID', 'GeneID']
 d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
 d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
 d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
-d['correction type'] = d.apply(lambda x: ('GC ' if x['GC_correct'] else '') + ('Pos' if x['Pos_correct'] else ''), axis=1)
-d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False)")
+d['correction type'] = d.apply(correction_type, axis=1)
+d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
 
 fig = sns.displot(
     x = "log_rel_abs_error",
     data = d,
     hue = "correction type",
-    row = "GC_bias",
-    col = "pos_3prime_bias",
+    col = "run",
+    col_wrap = 3,
     kind = "kde",
     clip = (-2.5, 2.5),
-    row_order = bias_order,
-    col_order = bias_order,
+    col_order = run_order,
+    hue_order = correction_type_order,
+    common_norm = False,
+)
+fig.refline(x=0)
+fig.set_axis_labels("log2( |TPM err| / |TPM baseline error|)", "Transcript Density")
+fig.savefig(out_dir / "abs_error.compared_to_baseline.png", dpi=300)
+
+# Same as above but gene-level
+d = gene_data.copy()
+d['abs_error'] = d['TPM'] - d['true_tpm']
+baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
+beers_run = ['sample', 'run', 'GeneID']
+d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
+d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
+d['correction type'] = d.apply(correction_type, axis=1)
+d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
+
+fig = sns.displot(
+    x = "log_rel_abs_error",
+    data = d,
+    hue = "correction type",
+    col = "run",
+    col_wrap = 3,
+    kind = "kde",
+    clip = (-2.5, 2.5),
+    col_order = run_order,
     hue_order = correction_type_order,
     common_norm = False,
 )
 fig.refline(x=0)
 fig.set_axis_labels("log2( |TPM err| / |TPM baseline error|)", "Gene Density")
-ax = fig.axes_dict[('none', 'none')]
-print("Frac in range:", (d['log_rel_abs_error'].abs() < 2.5).mean())
+print("TPM Frac in range:", (d['log_rel_abs_error'].abs() < 2.5).mean())
 fig.savefig(out_dir / "abs_error.compared_to_baseline.by_gene.png", dpi=300)
+
+# CPM Transcript-level:
+d = data.copy()
+d['abs_error'] = d['salmon_cpm'] - d['true_cpm']
+baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
+beers_run = ['sample', 'run', 'TranscriptID', 'GeneID']
+d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
+d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
+d['correction type'] = d.apply(correction_type, axis=1)
+d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
+
+fig = sns.displot(
+    x = "log_rel_abs_error",
+    data = d,
+    hue = "correction type",
+    col = "run",
+    col_wrap = 3,
+    kind = "kde",
+    clip = (-2.5, 2.5),
+    col_order = run_order,
+    hue_order = correction_type_order,
+    common_norm = False,
+)
+fig.refline(x=0)
+fig.set_axis_labels("log2( |CPM err| / |CPM baseline error|)", "Transcript Density")
+fig.savefig(out_dir / "abs_error.compared_to_baseline.CPM.png", dpi=300)
+
+# Same as above but gene-level
+d = gene_data.copy()
+d['abs_error'] = d['salmon_cpm'] - d['true_tpm']
+baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
+beers_run = ['sample', 'run', 'GeneID']
+d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
+d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
+d['correction type'] = d.apply(correction_type, axis=1)
+d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
+
+fig = sns.displot(
+    x = "log_rel_abs_error",
+    data = d,
+    hue = "correction type",
+    col = "run",
+    col_wrap = 3,
+    kind = "kde",
+    clip = (-2.5, 2.5),
+    col_order = run_order,
+    hue_order = correction_type_order,
+    common_norm = False,
+)
+fig.refline(x=0)
+fig.set_axis_labels("log2( |CPM err| / |CPM baseline error|)", "Gene Density")
+print("CPM Frac in range:", (d['log_rel_abs_error'].abs() < 2.5).mean())
+fig.savefig(out_dir / "abs_error.compared_to_baseline.CPM.by_gene.png", dpi=300)
+
 
 # Error broken down by bias-amount in the genes
 # We can measure the effect of Salmon's bias-correcting procedures via comparing
