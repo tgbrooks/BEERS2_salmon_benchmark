@@ -499,21 +499,22 @@ rule make_igv_view:
                 shell(rclone_cmd)
 
         # Generate the session object - it tells IGV.js how to load everything we generated
+        genome = {
+             "fastaURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa",
+             "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai",
+             "tracks": [
+                {
+                    "name": "Genes",
+                    "type": "annotation",
+                    "format": "gtf",
+                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf",
+                    "nameField": "gene_id",
+                    "altColor": "rgb(0,100,100)",
+                },
+            ],
+        }
         session = {
-            "genome": {
-                 "fastaURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa",
-                 "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai",
-                 "tracks": [
-                    {
-                        "name": "Genes",
-                        "type": "annotation",
-                        "format": "gtf",
-                        "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf",
-                        "nameField": "gene_id",
-                        "altColor": "rgb(0,100,100)",
-                    },
-                ],
-            },
+            "genome": genome,
             "tracks": [
                 {
                     "type": "alignment",
@@ -532,5 +533,33 @@ rule make_igv_view:
         print(rclone_cmd)
         shell(rclone_cmd)
 
+        # Genereate a simplified session showing only some data
+        simple_session = {
+            "genome": genome,
+            "tracks": [
+                {
+                    "type": "alignment",
+                    "name": f"{run_id}.sample{sample_id}",
+                    "format": "bed",
+                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run_id}/sample{sample_id}/BEERS_output.bam",
+                    "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/{run_id}/sample{sample_id}/BEERS_output.bam.bai",
+                }
+                for run_id in ['unbiased', 'all_bias']
+                for sample_id in [1]
+            ],
+        }
+        with open("results/igv/simple_session.json", "w") as session_file:
+            json.dump(simple_session, session_file)
+        rclone_cmd = f"rclone copyto results/igv/simple_session.json {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/simple_session.json"
+        print(rclone_cmd)
+        shell(rclone_cmd)
+
+
         # Write out the URL of the trackhub for easy use in the genome browser
-        (out_dir / "url.txt").write_text(f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/session.json\n")
+        URLS = f'''
+        https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/session.json\n
+        https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/simple_session.json\n
+        '''
+        (out_dir / "url.txt").write_text(URLS)
+        print("Uploaded sessions to:")
+        print(URLS)
