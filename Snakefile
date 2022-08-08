@@ -7,8 +7,8 @@ from run_configs import run_configs, sample_ids, lanes_used
 RCLONE_REMOTE = "aws_igv_data" # Must first run `rclone config` and set up a remote with this name for uploading trackhubs to
 BUCKET_NAME = "itmat.igv.data" # Bucket to upload to with rclone for trackhubs
 
-#CAMPAREE_CONFIG = 'config/camparee_config.yaml'
-CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
+CAMPAREE_CONFIG = 'config/camparee_config.yaml'
+#CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
 
 run_ids = run_configs.keys()
 
@@ -55,7 +55,8 @@ rule run_CAMPAREE:
     input:
         CAMPAREE_CONFIG
     output:
-        directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'),
+        #directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'),
+        directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/CAMPAREE/data/'),
     params:
         '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/'
     resources:
@@ -75,7 +76,11 @@ rule run_beers:
         beers_dir = directory("data/{run}/beers/"),
         config = "data/{run}/beers.config.json",
     resources:
-        mem_mb = 18_000
+        mem_mb = 18_000,
+        # NOTE: Allows the limiting of the number of beers runs submitted at once
+        #       run snakemake with --resources beers=1 to run just one copy at once
+        #       This helps to limit the number of requested jobs at a time
+        beers = 1
     run:
         #Generate config template
         import string
@@ -89,7 +94,7 @@ rule run_beers:
         with open(params.config, "w") as f:
             f.write(config)
         # Run beers
-        beers_cmd =  f"run_beers.py -c {params.config} -r 1 --force_overwrite -d -m serial prep_and_sequence_pipeline"
+        beers_cmd =  f"run_beers.py -c {params.config} -r 1 --force_overwrite -d -m lsf prep_and_sequence_pipeline"
         print(beers_cmd)
         shell(beers_cmd)
         shell("touch {output.flag_file}")
