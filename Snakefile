@@ -2,15 +2,43 @@ import pathlib
 import itertools
 import util
 
-from run_configs import run_configs, sample_ids, lanes_used
+configfile:
+    "config.yaml"
+
+cfg = config
+run_configs = config['run_configs']
+run_ids = run_configs.keys()
+lanes_used = config['lanes_used']
+sample_ids = config['sample_ids']
 
 RCLONE_REMOTE = "aws_igv_data" # Must first run `rclone config` and set up a remote with this name for uploading trackhubs to
 BUCKET_NAME = "itmat.igv.data" # Bucket to upload to with rclone for trackhubs
+BUCKET_DIR = f"BEERS2_SALMON_BENCHMARK/DATA"
 
-CAMPAREE_CONFIG = 'config/camparee_config.yaml'
-#CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
 
-run_ids = run_configs.keys()
+BABY_GENOME = False
+if BABY_GENOME:
+    CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
+    REFERENCE_GENOME = '/home/thobr/BEERS2/CAMPAREE/resources/baby_genome.mm10/baby_genome.mm10.oneline_seqs.fa'
+    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'
+    CAMPAREE_DIR = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/'
+    SALMON_INDEX = 'index/baby_mouse'
+    # NOTE: we use the full annotations since baby genome is a subset. This is wasteful but works
+    GENE_ANNOTATIONS = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/Mus_musculus.GRCm38.93.gtf.gz'
+    STAR_INDEX = '/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/'
+    GENOME = "baby_mouse"
+else:
+    CAMPAREE_CONFIG = 'config/camparee_config.yaml'
+    REFERENCE_GENOME = '/project/itmatlab/for_tom/BEERS2_benchmark/resources/mm10/Mus_musculus.GRCm38.dna.oneline_seqs.fa'
+    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/CAMPAREE/data/'
+    CAMPAREE_DIR = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/'
+    SALMON_INDEX = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/index/'
+    GENE_ANNOTATIONS = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/Mus_musculus.GRCm38.93.gtf.gz'
+    STAR_INDEX = '/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/' #TODO: switch this to v93 too? Do we still need this command?
+    GENOME = "mm10"
+
+LATENCY_WAIT = 60 # Seconds
+
 
 GC_corrects = ['yes', 'no']
 Pos_corrects = ['yes', 'no']
@@ -21,7 +49,7 @@ wildcard_constraints:
     sample = "[0-9]+",
     GC_correct = "[A-Za-z]+",
     Pos_correct = "[A-Za-z]+",
-    Seq_corrct = "[A-Za-z]+",
+    Seq_correct = "[A-Za-z]+",
 
 rule all:
     input:
@@ -29,17 +57,8 @@ rule all:
         "results/accuracy/",
         "results/salmon_quants.txt",
         "results/gc_content/",
-        "results/coverage/",
-        "/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/",
-        # For comparison, align just a few with STAR
-        "data/unbiased/sample1/STAR/",
-        "data/all_bias/sample1/STAR/",
+        #"results/coverage/",
         "results/igv/url.txt",
-        #salmon_quant = expand("data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}/quant.sf",
-        #            run = run_ids,
-        #            sample = sample_ids,
-        #            GC_correct = GC_corrects,
-        #            Pos_correct = Pos_corrects),
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -49,16 +68,14 @@ rule all:
         beers_output_bam = expand("data/{run}/sample{sample}/BEERS_output.bam",
                     run = run_ids,
                     sample = sample_ids),
-        #renamed_gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.renamed_chromes.gtf",
 
 rule run_CAMPAREE:
     input:
         CAMPAREE_CONFIG
     output:
-        #directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'),
-        directory('/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/CAMPAREE/data/'),
+        directory(CAMPAREE_DIR)
     params:
-        '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/'
+        CAMPAREE_DIR
     resources:
         mem_mb = 10_000,
     shell:
@@ -66,21 +83,16 @@ rule run_CAMPAREE:
 
 rule run_beers:
     input:
-        config_template = "config/config.template.json",
-        camparee_output = "/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/",
-        #reference_genome = "/project/itmatlab/for_tom/BEERS2_benchmark/resources/mm10/Mus_musculus.GRCm38.dna.oneline_seqs.fa", # Full genome
-        reference_genome = "/home/thobr/BEERS2/CAMPAREE/resources/baby_genome.mm10/baby_genome.mm10.oneline_seqs.fa", # Baby genome
+        config_template = "config/config.template.yaml",
+        camparee_output = CAMPAREE_OUTPUT,
+        reference_genome = REFERENCE_GENOME,
     output:
         flag_file = "data/{run}/beers/finished_flag"
     params:
         beers_dir = directory("data/{run}/beers/"),
-        config = "data/{run}/beers.config.json",
+        config = "data/{run}/beers.config.yaml",
     resources:
-        mem_mb = 18_000,
-        # NOTE: Allows the limiting of the number of beers runs submitted at once
-        #       run snakemake with --resources beers=1 to run just one copy at once
-        #       This helps to limit the number of requested jobs at a time
-        beers = 1
+        mem_mb = 6_000
     run:
         #Generate config template
         import string
@@ -88,13 +100,15 @@ rule run_beers:
         config_fill_values = dict()
         config_fill_values.update(run_configs[wildcards.run])
         config_fill_values['camparee_output'] = input.camparee_output
-        config_fill_values['output_dir'] = params.beers_dir +"/run"
         config_fill_values['reference_genome'] = input.reference_genome
+        config_fill_values.update(cfg['pos_3prime_bias'][config_fill_values['pos_3prime_bias']])
+        config_fill_values.update(cfg['GC_bias'][config_fill_values['GC_bias']])
+        config_fill_values.update(cfg['primer_bias'][config_fill_values['primer_bias']])
         config = config_template.substitute(config_fill_values)
         with open(params.config, "w") as f:
             f.write(config)
         # Run beers
-        beers_cmd =  f"run_beers.py -c {params.config} -r 1 --force_overwrite -d -m lsf prep_and_sequence_pipeline"
+        beers_cmd =  f"run_beers --configfile {params.config} --directory {params.beers_dir} --profile lsf -j 30 -c 30 --latency-wait {LATENCY_WAIT}"
         print(beers_cmd)
         shell(beers_cmd)
         shell("touch {output.flag_file}")
@@ -103,45 +117,49 @@ rule get_beers_quant_files:
     input:
         "data/{run}/beers/finished_flag",
     params:
-        beers_dir = "data/{run}/beers/",
+        beers_dir = "data/{run}/beers/library_prep_pipeline/sample{sample}/",
     output:
-        input_quants = expand("data/{{run}}/sample{sample}/input_quant.txt", sample=sample_ids),
-        output_quants = expand("data/{{run}}/sample{sample}/output_quant.txt", sample=sample_ids),
+        input_quants = "data/{run}/sample{sample}/input_quant.txt",
+        output_quants = "data/{run}/sample{sample}/output_quant.txt",
+    resources:
+        mem_mb = 6_000,
     run:
+        sample = wildcards.sample
         import pandas
         # Sum the quantification files provided by beers per packet and then demultiplex by sample
-        input_quantfiles = pathlib.Path(params.beers_dir).glob("run_run1/library_prep_pipeline/logs/Pipeline/*/library_prep_pipeline_molecule_pkt*.quant_file")
-        output_quantfiles = pathlib.Path(params.beers_dir).glob("run_run1/library_prep_pipeline/data/*/library_prep_pipeline_result_molecule_pkt*.quant_file")
+        input_quantfiles = list(pathlib.Path(params.beers_dir).glob("from_*/input_quants/library_prep_pipeline_molecule_pkt*.quant_file"))
+        output_quantfiles = list(pathlib.Path(params.beers_dir).glob("from_*/library_prep_pipeline_result_molecule_pkt*.quant_file"))
+        print(f"Processing {len(input_quantfiles)} input quant files and {len(output_quantfiles)} output quant files")
 
         input_quants_list = []
         for input_file in input_quantfiles:
             # Load all the packet quants
-            input_quant = pandas.read_csv(input_file, sep="\t", header=None, index_col=0)
+            input_quant = pandas.read_csv(input_file, sep="\t", index_col=0)
             input_quant.index.name = "BeersTranscriptID"
             input_quant.columns = ['count']
             input_quants_list.append(input_quant)
-        input_quants = pandas.concat(input_quants_list, axis=0)
-        for sample, filepath in zip(sample_ids, output.input_quants):
-            # De-multiplex the samples
-            # Transcripts are identified with sample# at the start
-            prefix = f"{sample}_"
-            sample_input_quants = input_quants[input_quants.index.str.startswith(prefix)].reset_index()
-            sample_input_quants.groupby('BeersTranscriptID').sum().to_csv(filepath, sep="\t")
+        input_quants = pandas.concat(input_quants_list, axis=0).reset_index()
+        input_quants.groupby('BeersTranscriptID')['count'].sum().to_csv(output.input_quants, sep="\t")
+        #input_quants['mature'] = ~input_quants.index.str.endswith("_pre_mRNA")
+        #pandas.DataFrame({
+        #    "count": input_quants.groupby('BeersTranscriptID')['count'].sum(),
+        #    "mature_mRNA_count": input_quants.query("mature").groupby('BeersTranscriptID')['count'].sum(),
+        #}).fillna(0).to_csv(output.input_quants, sep="\t")
 
         output_quants_list = []
         for output_file in output_quantfiles:
             # Load all the packet quants
-            output_quant = pandas.read_csv(output_file, sep="\t", header=None, index_col=0)
+            output_quant = pandas.read_csv(output_file, sep="\t", index_col=0)
             output_quant.index.name = "BeersTranscriptID"
             output_quant.columns = ['count']
             output_quants_list.append(output_quant)
-        output_quants = pandas.concat(output_quants_list, axis=0)
-        for sample, filepath in zip(sample_ids, output.output_quants):
-            # De-multiplex the samples
-            # Transcripts are per-sample and identified with sample# at the start
-            prefix = f"{sample}_"
-            sample_output_quants = output_quants[output_quants.index.str.startswith(prefix)].reset_index()
-            sample_output_quants.groupby('BeersTranscriptID').sum().to_csv(filepath, sep="\t")
+        output_quants = pandas.concat(output_quants_list, axis=0).reset_index()
+        output_quants.groupby('BeersTranscriptID')['count'].sum().to_csv(output.output_quants, sep="\t")
+        #output_quants['mature'] = ~output_quants.index.str.endswith("_pre_mRNA")
+        #pandas.DataFrame({
+        #    "count": output_quants.groupby('BeersTranscriptID')['count'].sum(),
+        #    "mature_mRNA_count": output_quants.query("mature").groupby('BeersTranscriptID')['count'].sum(),
+        #}).fillna(0).to_csv(output.output_quants, sep="\t")
 
 rule generate_salmon_index:
     output:
@@ -162,7 +180,7 @@ rule strip_polya_tails:
     output:
         directory("data/{run}/beers_no_polya/"),
     params:
-        data_folder = "data/{run}/beers/run_run1/controller/data",
+        data_folder = "data/{run}/beers/results",
     resources:
         mem_mb = 6_000
     run:
@@ -173,11 +191,7 @@ rule strip_polya_tails:
         outdir.mkdir(exist_ok=True)
         outidr = outdir / "beers"
         outdir.mkdir(exist_ok=True)
-        outdir = outdir / "run_run1"
-        outdir.mkdir(exist_ok=True)
-        outdir = outdir / "controller"
-        outdir.mkdir(exist_ok=True)
-        outdir = outdir / "data"
+        outdir = outdir / "results"
         outdir.mkdir(exist_ok=True)
         for sample in sample_ids:
             for lane in lanes_used:
@@ -193,15 +207,15 @@ rule strip_polya_tails:
 rule run_salmon:
     input:
         "data/{run}/beers/finished_flag",
-        #"index/baby_mouse"
+        "index/baby_mouse"
     output:
         "data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}/quant.sf",
     params:
         beers_dir = "data/{run}/beers/",
-        data_folder = "data/{run}/beers/run_run1/controller/data",
-        gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
+        data_folder = "data/{run}/beers/results",
+        gtf_file = GENE_ANNOTATIONS,
         out_folder = "data/{run}/sample{sample}/salmon/GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}/",
-        index = "/project/itmatlab/index/SALMON-1.4.0_indexes/Mus_musculus.GRCm38.75/Mus_musculus.GRCm38.75/",
+        index = SALMON_INDEX,
     threads: 6
     resources:
         mem_mb=25000,
@@ -214,7 +228,7 @@ rule run_salmon:
         if wildcards.Seq_correct == 'yes':
             args += ' --seqBias'
         #TODO: handle --seqBias option
-        shell(f"salmon quant -i {params.index} -g {params.gtf_file} {args} -1 {params.data_folder}/S{wildcards.sample}_*_R1.fastq -2 {params.data_folder}/S{wildcards.sample}_*_R2.fastq -o {params.out_folder}")
+        shell(f"salmon quant -i {params.index} -g {params.gtf_file} {args} -1 {params.data_folder}/S{wildcards.sample}_*_R1.fastq -2 {params.data_folder}/S{wildcards.sample}_*_R2.fastq -o {params.out_folder} --numBootstraps 50")
 
 
 rule gather_quants:
@@ -231,7 +245,7 @@ rule gather_quants:
         beers_output_quants = expand("data/{run}/sample{sample}/output_quant.txt",
                         run = run_ids,
                         sample=sample_ids),
-        gene_annotations = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
+        gene_annotations = GENE_ANNOTATIONS,
     output:
         salmon = "results/salmon_quants.txt",
         beers_input = "results/beers_input_quants.txt",
@@ -256,6 +270,7 @@ rule gather_quants:
         for quant_file, (run, GC_correct, Pos_correct, Seq_correct, sample) in zip(input.salmon_quants, itertools.product(run_ids, GC_corrects, Pos_corrects, Seq_corrects, sample_ids), strict=True):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
             #Name	Length	EffectiveLength	TPM	NumReads
+            quants.index = quants.index.map(lambda x: x.split(".")[0]) # Some annotations have ".###" at the end to indicate the version number - we remove those
             quants.index.name = "TranscriptID"
             quants['run'] = run
             quants['GC_bias'] = run_configs[run]['GC_bias']
@@ -316,7 +331,7 @@ rule compute_gc_content:
     output:
         gc_content = "data/{run}/gc_content.txt",
     params:
-        beers_output_data_folder = "data/{run}/beers/run_run1/controller/data",
+        beers_output_data_folder = "data/{run}/beers/results",
         samples = sample_ids,
     resources:
         mem_mb = 18_000,
@@ -353,9 +368,9 @@ rule run_STAR:
         out_dir = directory("data/{run}/sample{sample}/STAR/"),
     params:
         beers_dir = "data/{run}/beers/",
-        data_folder = "data/{run}/beers/run_run1/controller/data",
-        gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
-        index = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/",
+        data_folder = "data/{run}/beers/results",
+        gtf_file = GENE_ANNOTATIONS,
+        index = STAR_INDEX,
     threads: 6
     resources:
         mem_mb=40000,
@@ -376,7 +391,7 @@ rule generate_BAM:
     output:
         bam = "data/{run}/sample{sample}/BEERS_output.bam",
     params:
-        data_folder = "data/{run}/beers/run_run1/controller/data",
+        data_folder = "data/{run}/beers/results",
     run:
         import uuid
         tmpdir = pathlib.Path(resources.tmpdir) / str(uuid.uuid4())
@@ -396,15 +411,15 @@ rule generate_BAI:
     shell:
         "samtools index -b {input} {output}"
 
-rule plot_coverage:
-    input:
-        bams = expand('data/{run}/sample{sample}/BEERS_output.bam',
-                        run = run_ids,
-                        sample = sample_ids),
-    output:
-        directory("results/coverage/")
-    script:
-        "scripts/plot_coverage.py"
+#rule plot_coverage:
+#    input:
+#        bams = expand('data/{run}/sample{sample}/BEERS_output.bam',
+#                        run = run_ids,
+#                        sample = sample_ids),
+#    output:
+#        directory("results/coverage/")
+#    script:
+#        "scripts/plot_coverage.py"
 
 rule compute_seq_bias:
     input:
@@ -426,40 +441,10 @@ rule plot_seq_bias:
         "scripts/plot_seq_bias.py"
 
 
-# These rules were included for coverage plot generation but now we go straight from BAM files
-#rule generate_bigwig:
-#    input:
-#        bam = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam",
-#        bai = "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.bam.bai",
-#    output:
-#        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.forward.bigwig",
-#        "data/GC_bias={GC_bias}.pos_3prime_bias={pos_3prime_bias}/sample{sample}/BEERS_output.reverse.bigwig",
-#    shell:
-#        "bamCoverage --filterRNAstrand forward --binSize 1 -b {input.bam} -o {output[0]} && bamCoverage --filterRNAstrand reverse -b {input.bam} -o {output[1]}"
-#
-#rule rename_chromes_in_gtf:
-#    # Rename chromosomes in a gtf file as 'chr1',...'chrM' instead of '1', ..., 'MT'
-#    # Used for coolbox plotting, but also just consistent with the generated camparee data
-#    input:
-#        gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.gtf",
-#    output:
-#        renamed_gtf_file = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/Mus_musculus.GRCm38.102.renamed_chromes.gtf",
-#    run:
-#        with open(input.gtf_file) as input_gtf:
-#            with open(output.renamed_gtf_file, "w") as output_gtf:
-#                for line in input_gtf:
-#                    if line.startswith("#"):
-#                        output_gtf.write(line)
-#                    elif line.startswith("MT"):
-#                        output_gtf.write("chrM" + line[2:])
-#                    else:
-#                        output_gtf.write("chr" + line)
-
 rule make_igv_view:
     input:
         bams = expand("data/{run}/sample{sample}/BEERS_output.bam", run=run_ids, sample=sample_ids),
         bais = expand("data/{run}/sample{sample}/BEERS_output.bam.bai", run=run_ids, sample=sample_ids),
-        #chrom_sizes = "/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/chrNameLength.txt",
         camparee_config = CAMPAREE_CONFIG
     output:
         "results/igv/url.txt",
@@ -473,26 +458,35 @@ rule make_igv_view:
         import yaml
         camparee_config = yaml.safe_load(open(input.camparee_config))
         genome_dir = pathlib.Path(camparee_config['resources']['directory_path']) / camparee_config['resources']['species_model']
-        genome_file = genome_dir /camparee_config['resources']['reference_genome_filename']
+        genome_file = (genome_dir /camparee_config['resources']['reference_genome_filename']).resolve()
 
         genome_index_file = pathlib.Path("results/igv/genome.fai")
         if not genome_index_file.exists():
             shell(f"samtools faidx -o {genome_index_file} {genome_file}")
 
-        genome_gtf = (genome_dir / camparee_config['resources']['annotation_filename']).with_suffix(".gtf")
+
+        # Indexed annotations
+        genome_gtf = GENE_ANNOTATIONS
+        bgz_gtf_file = pathlib.Path('results/igv/annotation.gtf.bgz')
+        if not bgz_gtf_file.exists():
+            shell(f'''(grep "^#" {genome_gtf}; grep -v "^#" {genome_gtf} | sort -t"`printf '\t'`" -k1,1 -k4,4n) | bgzip -c  > {bgz_gtf_file}''')
+        index_gtf_file = pathlib.Path('results/igv/annotation.gtf.bgz.tbi')
+        if not index_gtf_file.exists():
+            shell(f"tabix -p gff {bgz_gtf_file}")
 
         print("Uploading to bucket via rclone")
-        BUCKET_DIR = f"BEERS2_SALMON_BENCHMARK/DATA"
         rclone_cmd = f"rclone copyto {genome_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fa"
         print(rclone_cmd)
         shell(rclone_cmd)
         rclone_cmd = f"rclone copyto {genome_index_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.fai"
         print(rclone_cmd)
         shell(rclone_cmd)
-        if genome_gtf.exists():
-            rclone_cmd = f"rclone copyto {genome_gtf} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf"
-            print(rclone_cmd)
-            shell(rclone_cmd)
+        rclone_cmd = f"rclone copyto {bgz_gtf_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf.bgz"
+        print(rclone_cmd)
+        shell(rclone_cmd)
+        rclone_cmd = f"rclone copyto {index_gtf_file} {RCLONE_REMOTE}:{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf.bgz.tbi"
+        print(rclone_cmd)
+        shell(rclone_cmd)
 
         for run in run_ids:
             for sample_id in sample_ids:
@@ -512,12 +506,14 @@ rule make_igv_view:
                     "name": "Genes",
                     "type": "annotation",
                     "format": "gtf",
-                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf",
+                    "url": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf.bgz",
+                    "indexURL": f"https://s3.amazonaws.com/{BUCKET_NAME}/{BUCKET_DIR}/GENOME/genome.gtf.bgz.tbi",
                     "nameField": "gene_id",
                     "altColor": "rgb(0,100,100)",
                 },
             ],
         }
+
         session = {
             "genome": genome,
             "tracks": [

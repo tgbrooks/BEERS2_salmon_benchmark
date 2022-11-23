@@ -6,7 +6,9 @@ import pandas
 import seaborn as sns
 import pylab
 
-from run_configs import run_configs, sample_ids, lanes_used
+run_configs = snakemake.config['run_configs']
+lanes_used = snakemake.config['lanes_used']
+sample_ids = snakemake.config['sample_ids']
 
 bias_order = ["none", "med", "high"]
 run_order = run_configs.keys()
@@ -36,6 +38,8 @@ true_counts = beers_out.copy()
 true_counts.rename(columns={"count": "true_count"}, inplace=True)
 
 # Join with the Salmon quantified values
+print(salmon.dtypes)
+print(true_tpm.dtypes)
 data = pandas.merge(salmon, true_tpm, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
 data = pandas.merge(data, true_counts, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
 data = pandas.merge(data, beers_in, on=['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'TranscriptID', 'GeneID'])
@@ -322,32 +326,46 @@ fig.savefig(out_dir / "abs_error.compared_to_baseline.CPM.by_gene.png", dpi=300)
 
 # For GC bias:
 d = data.copy()
-GC_baseline = d.query("pos_3prime_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'sample', 'TranscriptID'])
-GC_corrected = d.query("pos_3prime_bias == 'none'and primer_bias == 'none' and GC_correct == True and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'sample', 'TranscriptID'])
+GC_baseline = d.query("pos_3prime_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
+GC_corrected = d.query("pos_3prime_bias == 'none'and primer_bias == 'none' and GC_correct == True and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
 GC_correction = pandas.DataFrame({
     "GC_bias_factor":  GC_corrected.EffectiveLength / GC_baseline.EffectiveLength,
     "rel_abs_error": ((GC_corrected.TPM - GC_corrected.true_tpm) / (GC_baseline.TPM - GC_baseline.true_tpm)).abs(),
     "baseline_num_reads": GC_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(GC_baseline.NumReads + 1),
 }).reset_index()
-fig = sns.relplot(
-        x = "GC_bias_factor",
-        y = "rel_abs_error",
-        size = "log10_baseline_num_reads",
-        data = GC_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
-        col = "sample",
-        row = "GC_bias",
-        row_order=bias_order,
-        kind = "scatter",
-        #kind = "kde",
-        #common_norm = False,
-)
-fig.set(ylim=(0.0, 2.0))
-fig.refline(y=1)
-fig.savefig(out_dir / "rel_abs_err.by_GC_bias_factor.png", dpi=300)
+GC_correction_expr = GC_correction.query(f"baseline_num_reads > {MIN_NUM_READS} and sample == 1")
+if len(GC_correction_expr) < 1000:
+    fig = sns.relplot(
+            x = "GC_bias_factor",
+            y = "rel_abs_error",
+            size = "log10_baseline_num_reads",
+            data = GC_correction_expr,
+            col = "sample",
+            row = "GC_bias",
+            row_order=bias_order,
+            kind = "scatter",
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_GC_bias_factor.png", dpi=300)
+else:
+    # Too many points for a scatter plot
+    fig = sns.displot(
+            x = "GC_bias_factor",
+            y = "rel_abs_error",
+            data = GC_correction_expr,
+            col = "run",
+            col_wrap = 3,
+            col_order = run_order,
+            kind = "kde",
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_GC_bias_factor.png", dpi=300)
 fig = sns.displot(
         x = "GC_bias_factor",
-        data = GC_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
+        data = GC_correction_expr,
         col = "sample",
         hue = "GC_bias",
         hue_order=bias_order,
@@ -357,32 +375,45 @@ fig = sns.displot(
 fig.savefig(out_dir / "GC_bias_factor.dist.png", dpi=300)
 
 # Same for Positional bias
-pos_baseline = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['pos_3prime_bias', 'sample', 'TranscriptID'])
-pos_corrected = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == True and Seq_correct == False").set_index(['pos_3prime_bias', 'sample', 'TranscriptID'])
+pos_baseline = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
+pos_corrected = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == True and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
 pos_correction = pandas.DataFrame({
     "pos_bias_factor":  pos_corrected.EffectiveLength / pos_baseline.EffectiveLength,
     "rel_abs_error": ((pos_corrected.TPM - pos_corrected.true_tpm) / (pos_baseline.TPM - pos_baseline.true_tpm)).abs(),
     "baseline_num_reads": pos_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(pos_baseline.NumReads + 1),
 }).reset_index()
-fig = sns.relplot(
-        x = "pos_bias_factor",
-        y = "rel_abs_error",
-        size = "log10_baseline_num_reads",
-        data = pos_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
-        col = "sample",
-        row = "pos_3prime_bias",
-        row_order=bias_order,
-        kind = "scatter",
-        #kind = "kde",
-        #common_norm = False,
-)
-fig.set(ylim=(0.0, 2.0))
-fig.refline(y=1)
-fig.savefig(out_dir / "rel_abs_err.by_pos_bias_factor.png", dpi=300)
+pos_correction_expr = pos_correction.query(f"baseline_num_reads > {MIN_NUM_READS} and sample == 1")
+if len(pos_correction_expr) < 1000:
+    fig = sns.relplot(
+            x = "pos_bias_factor",
+            y = "rel_abs_error",
+            size = "log10_baseline_num_reads",
+            data = pos_correction_expr,
+            col = "sample",
+            row = "pos_3prime_bias",
+            row_order=bias_order,
+            kind = "scatter",
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_pos_bias_factor.png", dpi=300)
+else:
+    # Too many points for a scatter plot
+    fig = sns.displot(
+            x = "pos_bias_factor",
+            y = "rel_abs_error",
+            data = pos_correction_expr,
+            col = "run",
+            col_wrap = 3,
+            kind = "kde",
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_pos_bias_factor.png", dpi=300)
 fig = sns.displot(
         x = "pos_bias_factor",
-        data = pos_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
+        data = pos_correction_expr,
         col = "sample",
         hue = "pos_3prime_bias",
         hue_order=bias_order,
@@ -393,32 +424,47 @@ fig.savefig(out_dir / "pos_bias_factor.dist.png", dpi=300)
 
 
 # Same for sequence bias
-seq_baseline = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['primer_bias', 'sample', 'TranscriptID'])
-seq_corrected = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == True").set_index(['primer_bias', 'sample', 'TranscriptID'])
+seq_baseline = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
+seq_corrected = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == True").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
 seq_correction = pandas.DataFrame({
     "seq_bias_factor":  seq_corrected.EffectiveLength / seq_baseline.EffectiveLength,
     "rel_abs_error": ((seq_corrected.TPM - seq_corrected.true_tpm) / (seq_baseline.TPM - seq_baseline.true_tpm)).abs(),
     "baseline_num_reads": seq_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(seq_baseline.NumReads + 1),
 }).reset_index()
-fig = sns.relplot(
-        x = "seq_bias_factor",
-        y = "rel_abs_error",
-        size = "log10_baseline_num_reads",
-        data = seq_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
-        col = "sample",
-        row = "primer_bias",
-        row_order=bias_order,
-        kind = "scatter",
-        #kind = "kde",
-        #common_norm = False,
-)
-fig.set(ylim=(0.0, 2.0))
-fig.refline(y=1)
-fig.savefig(out_dir / "rel_abs_err.by_seq_bias_factor.png", dpi=300)
+seq_correction_expr = seq_correction.query(f"baseline_num_reads > {MIN_NUM_READS} and sample == 1")
+if len(seq_correction_expr) > 1000:
+    fig = sns.relplot(
+            x = "seq_bias_factor",
+            y = "rel_abs_error",
+            size = "log10_baseline_num_reads",
+            data = seq_correction_expr,
+            col = "sample",
+            row = "primer_bias",
+            row_order=bias_order,
+            kind = "scatter",
+            #kind = "kde",
+            #common_norm = False,
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_seq_bias_factor.png", dpi=300)
+else:
+    # Too many points for a scatter plot
+    fig = sns.displot(
+            x = "seq_bias_factor",
+            y = "rel_abs_error",
+            data = seq_correction_expr,
+            col = "run",
+            col_wrap = 3,
+            kind = "kde",
+    )
+    fig.set(ylim=(0.0, 2.0))
+    fig.refline(y=1)
+    fig.savefig(out_dir / "rel_abs_err.by_seq_bias_factor.png", dpi=300)
 fig = sns.displot(
         x = "seq_bias_factor",
-        data = seq_correction.query(f"baseline_num_reads > {MIN_NUM_READS}"),
+        data = seq_correction_expr,
         col = "sample",
         hue = "primer_bias",
         hue_order=bias_order,
@@ -459,7 +505,7 @@ fig.savefig(out_dir / "MARD.tpm.png", dpi=300)
 
 
 ## MARD by number of isoforms
-data['num isoforms'] = pandas.cut(data['num_isoforms'], [1,2,3,5,10,data.num_isoforms.max()])
+data['num isoforms'] = pandas.cut(data['num_isoforms'], [0,1,3,10,data.num_isoforms.max()])
 MARD_count = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type', 'num isoforms']).ARD_count.median()
 MARD_count.name = "MARD count"
 MARD_tpm = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type', 'num isoforms']).ARD_tpm.median()

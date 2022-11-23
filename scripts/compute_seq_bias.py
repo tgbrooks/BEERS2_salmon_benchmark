@@ -2,13 +2,15 @@ import pathlib
 import json
 import numpy
 
-from run_configs import run_configs
+run_configs = snakemake.config['run_configs']
+lanes_used = snakemake.config['lanes_used']
+sample_ids = snakemake.config['sample_ids']
 
 pathlib.Path('results/seq_bias/').mkdir(exist_ok=True)
 biases = ['none', 'med', 'high']
 
 #TODO: just the first lane? If we use multiple lanes, they won't all be represented here
-sam_paths = {(run): f"data/{run}/beers/run_run1/controller/data/S1_L1.sam"
+sam_paths = {(run): f"data/{run}/beers/results/S1_L1.sam"
                     for run in run_configs.keys()}
 
 BASES = ['A', 'C', 'G', 'T']

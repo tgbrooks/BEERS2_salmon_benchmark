@@ -5,7 +5,9 @@ import itertools
 import pandas
 import numpy
 
-from run_configs import run_configs
+run_configs = snakemake.config['run_configs']
+lanes_used = snakemake.config['lanes_used']
+sample_ids = snakemake.config['sample_ids']
 
 data_dir = pathlib.Path(snakemake.params.beers_output_data_folder)
 print(data_dir)
