@@ -254,9 +254,11 @@ rule gather_quants:
         mem_mb = 12_000
     run:
         # Load transcript ID to gene ID mappings
+        import gzip
         import re
         transcript_to_gene = {}
-        with open(input.gene_annotations) as annotations:
+        open_func = gzip.open if input.gene_annotations.endswith(".gz") else open
+        with open_func(input.gene_annotations, mode="rt") as annotations:
             gene_id_re = re.compile(r'gene_id "([a-zA-Z0-9]*)";')
             transcript_id_re = re.compile(r'transcript_id "([a-zA-Z0-9]*)";')
             for line in annotations:

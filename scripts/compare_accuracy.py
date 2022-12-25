@@ -433,7 +433,7 @@ seq_correction = pandas.DataFrame({
     "log10_baseline_num_reads": numpy.log10(seq_baseline.NumReads + 1),
 }).reset_index()
 seq_correction_expr = seq_correction.query(f"baseline_num_reads > {MIN_NUM_READS} and sample == 1")
-if len(seq_correction_expr) > 1000:
+if len(seq_correction_expr) < 1000:
     fig = sns.relplot(
             x = "seq_bias_factor",
             y = "rel_abs_error",

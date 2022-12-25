@@ -1,0 +1,68 @@
+
+sample_ids: [1,2]
+
+lanes_used: [1]
+
+run_configs: 
+    'unbiased':
+        'GC_bias': 'none'
+        'pos_3prime_bias': 'none'
+        'primer_bias': 'none'
+    'GC_bias_med':
+        'GC_bias': 'med'
+        'pos_3prime_bias': 'none'
+        'primer_bias': 'none'
+    'GC_bias_high':
+        'GC_bias': 'high'
+        'pos_3prime_bias': 'none'
+        'primer_bias': 'none'
+    'pos_3prime_bias_med':
+        'GC_bias': 'none'
+        'pos_3prime_bias': 'med'
+        'primer_bias': 'none'
+    'pos_3prime_bias_high':
+        'GC_bias': 'none'
+        'pos_3prime_bias': 'high'
+        'primer_bias': 'none'
+    'primer_bias_high':
+        'GC_bias': 'none'
+        'pos_3prime_bias': 'none'
+        'primer_bias': 'high'
+    'all_bias':
+        'GC_bias': 'high'
+        'pos_3prime_bias': 'high'
+        'primer_bias': 'high'
+
+GC_bias:
+    none:
+        "gc_bias_constant": 1.0
+        "gc_bias_linear": 0.0
+        "gc_bias_quadratic": 0.0
+    med:
+        "gc_bias_constant": 1.0
+        "gc_bias_linear": 0.0
+        "gc_bias_quadratic": -10
+    high:
+        "gc_bias_constant": 1.0
+        "gc_bias_linear": 0.0
+        "gc_bias_quadratic": -50
+
+pos_3prime_bias:
+    none:
+        "breakpoint_prob_per_base": 0.0
+    med:
+        "breakpoint_prob_per_base": 0.0002
+    high:
+        "breakpoint_prob_per_base": 0.001
+
+primer_bias:
+    none: 
+        perfect_priming: false
+        position_probability_matrix: |
+            { "A": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25], "C": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25], "G": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25], "T": [0.25, 0.25, 0.25, 0.25, 0.25, 0.25] }
+
+
+    high:
+        perfect_priming: false
+        position_probability_matrix: |
+            { "A": [0.50, 0.1, 0.40, 0.30, 0.25, 0.15], "C": [0.20, 0.5, 0.3 , 0.25, 0.25, 0.15], "G": [0.15, 0.1, 0.15, 0.25, 0.25, 0.20], "T": [0.15, 0.3, 0.15, 0.20, 0.25, 0.50] }
