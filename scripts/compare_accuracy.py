@@ -205,7 +205,7 @@ d['abs_error'] = d['TPM'] - d['true_tpm']
 baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
 beers_run = ['sample', 'run', 'TranscriptID', 'GeneID']
 d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['rel_abs_error'] = d['abs_error'].abs() / (d['abs_error_baseline'].abs() + 0.1)
 d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
 d['correction type'] = d.apply(correction_type, axis=1)
 d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
@@ -233,7 +233,7 @@ d['abs_error'] = d['TPM'] - d['true_tpm']
 baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
 beers_run = ['sample', 'run', 'GeneID']
 d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['rel_abs_error'] = d['abs_error'].abs() / (d['abs_error_baseline'].abs() + 0.1)
 d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
 d['correction type'] = d.apply(correction_type, axis=1)
 d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
@@ -262,7 +262,7 @@ d['abs_error'] = d['salmon_cpm'] - d['true_cpm']
 baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
 beers_run = ['sample', 'run', 'TranscriptID', 'GeneID']
 d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['rel_abs_error'] = d['abs_error'].abs() / (d['abs_error_baseline'].abs() + 0.1)
 d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
 d['correction type'] = d.apply(correction_type, axis=1)
 d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
@@ -290,7 +290,7 @@ d['abs_error'] = d['salmon_cpm'] - d['true_tpm']
 baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False")
 beers_run = ['sample', 'run', 'GeneID']
 d = pandas.merge(d, baseline[beers_run +["abs_error"]], left_on = beers_run, right_on = beers_run, suffixes = ('', '_baseline'))
-d['rel_abs_error'] = d['abs_error'].abs() / d['abs_error_baseline'].abs()
+d['rel_abs_error'] = d['abs_error'].abs() / (d['abs_error_baseline'].abs() + 0.1)
 d['log_rel_abs_error'] = numpy.log2(d.rel_abs_error)
 d['correction type'] = d.apply(correction_type, axis=1)
 d = d.query("sample == 1 and (GC_correct != False  or Pos_correct != False or Seq_correct != False)")
@@ -326,11 +326,11 @@ fig.savefig(out_dir / "abs_error.compared_to_baseline.CPM.by_gene.png", dpi=300)
 
 # For GC bias:
 d = data.copy()
-GC_baseline = d.query("pos_3prime_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
-GC_corrected = d.query("pos_3prime_bias == 'none'and primer_bias == 'none' and GC_correct == True and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
+GC_baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
+GC_corrected = d.query("GC_correct == True and Pos_correct == False and Seq_correct == False").set_index(['GC_bias', 'run', 'sample', 'TranscriptID'])
 GC_correction = pandas.DataFrame({
     "GC_bias_factor":  GC_corrected.EffectiveLength / GC_baseline.EffectiveLength,
-    "rel_abs_error": ((GC_corrected.TPM - GC_corrected.true_tpm) / (GC_baseline.TPM - GC_baseline.true_tpm)).abs(),
+    "rel_abs_error": ((GC_corrected.TPM - GC_corrected.true_tpm) / (GC_baseline.TPM - GC_baseline.true_tpm + 0.1)).abs(),
     "baseline_num_reads": GC_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(GC_baseline.NumReads + 1),
 }).reset_index()
@@ -341,9 +341,9 @@ if len(GC_correction_expr) < 1000:
             y = "rel_abs_error",
             size = "log10_baseline_num_reads",
             data = GC_correction_expr,
-            col = "sample",
-            row = "GC_bias",
-            row_order=bias_order,
+            col = "run",
+            col_wrap = 3,
+            col_order = run_order,
             kind = "scatter",
     )
     fig.set(ylim=(0.0, 2.0))
@@ -375,11 +375,11 @@ fig = sns.displot(
 fig.savefig(out_dir / "GC_bias_factor.dist.png", dpi=300)
 
 # Same for Positional bias
-pos_baseline = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
-pos_corrected = d.query("GC_bias == 'none' and primer_bias == 'none' and GC_correct == False and Pos_correct == True and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
+pos_baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
+pos_corrected = d.query("GC_correct == False and Pos_correct == True and Seq_correct == False").set_index(['pos_3prime_bias', 'run', 'sample', 'TranscriptID'])
 pos_correction = pandas.DataFrame({
     "pos_bias_factor":  pos_corrected.EffectiveLength / pos_baseline.EffectiveLength,
-    "rel_abs_error": ((pos_corrected.TPM - pos_corrected.true_tpm) / (pos_baseline.TPM - pos_baseline.true_tpm)).abs(),
+    "rel_abs_error": ((pos_corrected.TPM - pos_corrected.true_tpm) / (pos_baseline.TPM - pos_baseline.true_tpm + 0.1)).abs(),
     "baseline_num_reads": pos_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(pos_baseline.NumReads + 1),
 }).reset_index()
@@ -390,9 +390,9 @@ if len(pos_correction_expr) < 1000:
             y = "rel_abs_error",
             size = "log10_baseline_num_reads",
             data = pos_correction_expr,
-            col = "sample",
-            row = "pos_3prime_bias",
-            row_order=bias_order,
+            col = "run",
+            col_wrap = 3,
+            col_order = run_order,
             kind = "scatter",
     )
     fig.set(ylim=(0.0, 2.0))
@@ -424,11 +424,11 @@ fig.savefig(out_dir / "pos_bias_factor.dist.png", dpi=300)
 
 
 # Same for sequence bias
-seq_baseline = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
-seq_corrected = d.query("GC_bias == 'none' and pos_3prime_bias == 'none' and GC_correct == False and Pos_correct == False and Seq_correct == True").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
+seq_baseline = d.query("GC_correct == False and Pos_correct == False and Seq_correct == False").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
+seq_corrected = d.query("GC_correct == False and Pos_correct == False and Seq_correct == True").set_index(['primer_bias', 'run', 'sample', 'TranscriptID'])
 seq_correction = pandas.DataFrame({
     "seq_bias_factor":  seq_corrected.EffectiveLength / seq_baseline.EffectiveLength,
-    "rel_abs_error": ((seq_corrected.TPM - seq_corrected.true_tpm) / (seq_baseline.TPM - seq_baseline.true_tpm)).abs(),
+    "rel_abs_error": ((seq_corrected.TPM - seq_corrected.true_tpm) / (seq_baseline.TPM - seq_baseline.true_tpm + 0.1)).abs(),
     "baseline_num_reads": seq_baseline.NumReads,
     "log10_baseline_num_reads": numpy.log10(seq_baseline.NumReads + 1),
 }).reset_index()
@@ -439,12 +439,10 @@ if len(seq_correction_expr) < 1000:
             y = "rel_abs_error",
             size = "log10_baseline_num_reads",
             data = seq_correction_expr,
-            col = "sample",
-            row = "primer_bias",
-            row_order=bias_order,
+            col = "run",
+            col_wrap = 3,
+            col_order = run_order,
             kind = "scatter",
-            #kind = "kde",
-            #common_norm = False,
     )
     fig.set(ylim=(0.0, 2.0))
     fig.refline(y=1)
@@ -476,11 +474,14 @@ fig.savefig(out_dir / "seq_bias_factor.dist.png", dpi=300)
 ## Median absolute relative difference (MARD)
 # Transcript-level MADR in both counts and TPMs compared to truth
 data['ARD_count'] = (data['NumReads'] - data['true_count']).abs() / (data['NumReads'] + data['true_count'] + 1e-10) # Small epislon means that it goes to zero properly
+data['ARD_cpm'] = (data['salmon_cpm'] - data['true_cpm']).abs() / (data['salmon_cpm'] + data['true_cpm'] + 1e-10)
 data['ARD_tpm'] = (data['TPM'] - data['true_tpm']).abs() / (data['TPM'] + data['true_tpm'] + 1e-10)
 MARD_count = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_count.median()
 MARD_count.name = "MARD count"
 MARD_tpm = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_tpm.median()
 MARD_tpm.name = "MARD TPM"
+MARD_cpm = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_cpm.median()
+MARD_cpm.name = "MARD CPM"
 fig = sns.catplot(
         data = MARD_count.reset_index().query("sample == 1"),
         x = "run",
@@ -501,6 +502,16 @@ fig = sns.catplot(
 )
 [ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
 fig.savefig(out_dir / "MARD.tpm.png", dpi=300)
+fig = sns.catplot(
+        data = MARD_cpm.reset_index().query("sample == 1"),
+        x = "run",
+        y = "MARD CPM",
+        hue = "correction type",
+        hue_order = correction_type_order,
+        order = run_order,
+)
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
+fig.savefig(out_dir / "MARD.cpm.png", dpi=300)
 
 
 
@@ -510,6 +521,8 @@ MARD_count = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_co
 MARD_count.name = "MARD count"
 MARD_tpm = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type', 'num isoforms']).ARD_tpm.median()
 MARD_tpm.name = "MARD TPM"
+MARD_cpm = data.groupby(['run', 'sample', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type', 'num isoforms']).ARD_cpm.median()
+MARD_cpm.name = "MARD CPM"
 fig = sns.catplot(
         data = MARD_count.reset_index().query("sample == 1"),
         x = "run",
@@ -534,3 +547,15 @@ fig = sns.catplot(
 )
 [ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
 fig.savefig(out_dir / "MARD.tpm.by_num_isoforms.png", dpi=300)
+fig = sns.catplot(
+        data = MARD_cpm.reset_index().query("sample == 1"),
+        x = "run",
+        y = "MARD CPM",
+        col = "num isoforms",
+        col_wrap = 3,
+        hue = "correction type",
+        hue_order = correction_type_order,
+        order = run_order,
+)
+[ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right') for ax in fig.axes.flatten()]
+fig.savefig(out_dir / "MARD.cpm.by_num_isoforms.png", dpi=300)
