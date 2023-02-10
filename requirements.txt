@@ -1,0 +1,9 @@
+coolbox
+Cython
+matplotlib
+numpy
+pandas
+pysam
+scipy
+seaborn
+snakemake
