@@ -59,6 +59,7 @@ rule all:
         "results/gc_content/",
         #"results/coverage/",
         "results/igv/url.txt",
+        "results/positional_coverage.txt.gz",
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -354,6 +355,34 @@ rule gather_gc_content:
             res.append(d)
         data = pandas.concat(res)
         data.to_csv(output.gc_content, index=False, sep="\t")
+
+rule compute_pos_bias:
+    input:
+        "data/{run}/beers/finished_flag"
+    output:
+        pos_results = "data/{run}/positional_coverage.txt.gz",
+    params:
+        beers_output_data_folder = "data/{run}/beers/results",
+        samples = sample_ids,
+    resources:
+        mem_mb = 24_000,
+    script:
+        "scripts/compute_pos_bias.py"
+
+rule gather_pos_cov:
+    input:
+        pos_cov = expand("data/{run}/positional_coverage.txt.gz", run = run_ids),
+    output:
+        pos_cov = "results/positional_coverage.txt.gz",
+    run:
+        import pandas
+        import numpy
+        res = []
+        for pos_cov in input.pos_cov:
+            d = pandas.read_csv(pos_cov, sep="\t")
+            res.append(d)
+        data = pandas.concat(res)
+        data.to_csv(output.pos_cov, index=False, sep="\t")
 
 rule plot_gc_content:
     input:
