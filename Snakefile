@@ -25,7 +25,6 @@ if BABY_GENOME:
     SALMON_INDEX = 'index/baby_mouse'
     # NOTE: we use the full annotations since baby genome is a subset. This is wasteful but works
     GENE_ANNOTATIONS = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/Mus_musculus.GRCm38.93.gtf.gz'
-    STAR_INDEX = '/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/'
     GENOME = "baby_mouse"
 else:
     CAMPAREE_CONFIG = 'config/camparee_config.yaml'
@@ -34,7 +33,6 @@ else:
     CAMPAREE_DIR = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/'
     SALMON_INDEX = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/index/'
     GENE_ANNOTATIONS = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/Mus_musculus.GRCm38.93.gtf.gz'
-    STAR_INDEX = '/project/itmatlab/index/STAR-2.7.6a_indexes/GRCm38.ensemblv102/' #TODO: switch this to v93 too? Do we still need this command?
     GENOME = "mm10"
 
 LATENCY_WAIT = 60 # Seconds
@@ -392,30 +390,6 @@ rule plot_gc_content:
         directory("results/gc_content/")
     script:
         "scripts/plot_gc_content.py"
-
-rule run_STAR:
-    input:
-        "data/{run}/beers/finished_flag",
-    output:
-        out_dir = directory("data/{run}/sample{sample}/STAR/"),
-    params:
-        beers_dir = "data/{run}/beers/",
-        data_folder = "data/{run}/beers/results",
-        gtf_file = GENE_ANNOTATIONS,
-        index = STAR_INDEX,
-    threads: 6
-    resources:
-        mem_mb=40000,
-    run:
-        args = "--runThreadN 6"
-        #R1s = ','.join(str(x) for x in pathlib.Path(params.data_folder).glob(f"S{wildcards.sample}_*_R1.fastq"))
-        #R2s = ','.join(str(x) for x in pathlib.Path(params.data_folder).glob(f"S{wildcards.sample}_*_R2.fastq"))
-        R1s = f"{params.data_folder}/S{wildcards.sample}_L1_R1.fastq" # Only use the first lane - star doesn't seem to like combining these files
-        R2s = f"{params.data_folder}/S{wildcards.sample}_L1_R2.fastq"
-        cmd = f"STAR --genomeDir {params.index} {args} --readFilesIn {R1s} {R2s} --outFileNamePrefix {output.out_dir}/STAR"
-        print(cmd)
-        shell(cmd)
-
 
 rule generate_BAM:
     input:
