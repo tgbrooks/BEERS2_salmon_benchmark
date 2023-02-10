@@ -1,5 +1,5 @@
 
-sample_ids: [1,2]
+sample_ids: [1,2,3,4,5,6,7,8]
 
 lanes_used: [1]
 
@@ -41,7 +41,7 @@ GC_bias:
     med:
         "gc_bias_constant": 1.0
         "gc_bias_linear": 0.0
-        "gc_bias_quadratic": -10
+        "gc_bias_quadratic": -15
     high:
         "gc_bias_constant": 1.0
         "gc_bias_linear": 0.0

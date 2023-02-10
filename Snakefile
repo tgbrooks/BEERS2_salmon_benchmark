@@ -86,6 +86,7 @@ rule run_beers:
     input:
         config_template = "config/config.template.yaml",
         camparee_output = CAMPAREE_OUTPUT,
+        camparee_dir = CAMPAREE_DIR,
         reference_genome = REFERENCE_GENOME,
     output:
         flag_file = "data/{run}/beers/finished_flag"

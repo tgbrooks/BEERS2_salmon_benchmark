@@ -195,14 +195,57 @@ input:
                 - 213_ATGTCA_L003_R1_001.fastq.gz
                 - 213_ATGTCA_L003_R2_001.fastq.gz
             pooled: False
-            gender: male
+            gender: female
             molecule_count: 10000
             optional_inputs:
                 bam_file: '213_ATGTCA_L003_001.genome_alignment.Aligned.sortedByCoord.out.bam'
-                #intron_quant:
-                #gene_quant:
-                #psi_quant:
-                #allele_quant:
+        'sample_3':
+            fastq_files:
+                - 215_GGCTAC_L004_R1_001.fastq.gz
+                - 215_GGCTAC_L004_R2_001.fastq.gz
+            pooled: False
+            gender: female
+            molecule_count: 10000
+        'sample_4':
+            fastq_files:
+                - 223_GCCAAT_L002_R1_001.fastq.gz
+                - 223_GCCAAT_L002_R2_001.fastq.gz
+            pooled: False
+            gender: female
+            molecule_count: 10000
+        'sample_5':
+            fastq_files:
+                - 224_ACAGTG_L003_R1_001.fastq.gz
+                - 224_ACAGTG_L003_R2_001.fastq.gz
+            pooled: False
+            gender: female
+            molecule_count: 10000
+        'sample_6':
+            fastq_files:
+                - 226_CCGTCC_L003_R1_001.fastq.gz
+                - 226_CCGTCC_L003_R2_001.fastq.gz
+            pooled: False
+            gender: male
+            molecule_count: 10000
+            optional_inputs:
+                bam_ile: '226_CCGTCC_L003_001.genome_alignment.Aligned.sortedByCoord.out.bam'
+        'sample_7':
+            fastq_files:
+                - 227_AGTCAA_L002_R1_001.fastq.gz
+                - 227_AGTCAA_L002_R2_001.fastq.gz
+            pooled: False
+            gender: male
+            molecule_count: 10000
+            optional_inputs:
+                bam_file: '227_AGTCAA_L002_001.genome_alignment.Aligned.sortedByCoord.out.bam'
+        'sample_8':
+            fastq_files:
+                - 229_TGACCA_L002_R1_001.fastq.gz
+                - 229_TGACCA_L002_R2_001.fastq.gz
+            pooled: False
+            gender: male
+            molecule_count: 10000
+
 
 ### Output directory and parameters
 output:

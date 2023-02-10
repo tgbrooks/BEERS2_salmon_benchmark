@@ -133,6 +133,30 @@ library_prep_pipeline:
                 num_molecules_per_packet: 200000
                 num_packets: 100
                 sample_data_directory: ${camparee_output}/sample2/
+            '3':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample3/
+            '4':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample4/
+            '5':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample5/
+            '6':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample6/
+            '7':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample7/
+            '8':
+                num_molecules_per_packet: 200000
+                num_packets: 100
+                sample_data_directory: ${camparee_output}/sample8/
 
     steps:
         # The 'steps' list specifies all the steps that the Library Prep Pipeline
