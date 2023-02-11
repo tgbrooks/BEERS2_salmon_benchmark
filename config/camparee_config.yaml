@@ -206,6 +206,7 @@ input:
             pooled: False
             gender: female
             molecule_count: 10000
+            optional_inputs:
         'sample_4':
             fastq_files:
                 - 223_GCCAAT_L002_R1_001.fastq.gz
@@ -213,6 +214,7 @@ input:
             pooled: False
             gender: female
             molecule_count: 10000
+            optional_inputs:
         'sample_5':
             fastq_files:
                 - 224_ACAGTG_L003_R1_001.fastq.gz
@@ -220,6 +222,7 @@ input:
             pooled: False
             gender: female
             molecule_count: 10000
+            optional_inputs:
         'sample_6':
             fastq_files:
                 - 226_CCGTCC_L003_R1_001.fastq.gz
@@ -228,7 +231,7 @@ input:
             gender: male
             molecule_count: 10000
             optional_inputs:
-                bam_ile: '226_CCGTCC_L003_001.genome_alignment.Aligned.sortedByCoord.out.bam'
+                bam_file: '226_CCGTCC_L003_001.genome_alignment.Aligned.sortedByCoord.out.bam'
         'sample_7':
             fastq_files:
                 - 227_AGTCAA_L002_R1_001.fastq.gz
@@ -245,6 +248,7 @@ input:
             pooled: False
             gender: male
             molecule_count: 10000
+            optional_inputs:
 
 
 ### Output directory and parameters

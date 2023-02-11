@@ -32,6 +32,9 @@ output:
     output_sam: true
     output_bam: false
 
+    # Skip logging intermediate molecules for the sake of disk space
+    full_logs: false
+
 global:
     # global configuration contains configuration values that are available to all
     # steps of the Library Prep and Sequencing Pipeline.
@@ -54,6 +57,30 @@ global:
             barcodes:
                 i5: GATATCGA
                 i7: TTATAACC
+        '3':
+            barcodes:
+                i5: CGCAGACG
+                i7: GGACTTGG
+        '4':
+            barcodes:
+                i5: TATGAGTA
+                i7: AAGTCCAA
+        '5':
+            barcodes:
+                i5: AGGTGCGT
+                i7: ATCCACTG
+        '6':
+            barcodes:
+                i5: GAACATAC
+                i7: GCTTGTCA
+        '7':
+            barcodes:
+                i5: ACATAGCG
+                i7: CAAGCTAG
+        '8':
+            barcodes:
+                i5: GTGCGATA
+                i7: TGGATCGA
 
     molecule_maker_parameters:
         # BEERS has two different methods for generating molecules
