@@ -72,25 +72,25 @@ rule run_CAMPAREE:
     input:
         CAMPAREE_CONFIG
     output:
-        directory(CAMPAREE_DIR)
+        "data/camparee_done"
     params:
-        CAMPAREE_DIR
+        directory(CAMPAREE_DIR)
     resources:
         mem_mb = 10_000,
     shell:
-        'rm -r {params[0]} && run_camparee.py -r 1 -d -c {input[0]}'
+        'run_camparee.py -r 1 -d -c {input[0]} && camparee_done'
 
 rule run_beers:
     input:
         config_template = "config/config.template.yaml",
-        camparee_output = CAMPAREE_OUTPUT,
-        camparee_dir = CAMPAREE_DIR,
         reference_genome = REFERENCE_GENOME,
+        camparee_done = 'data/camparee_done'
     output:
         flag_file = "data/{run}/beers/finished_flag"
     params:
         beers_dir = directory("data/{run}/beers/"),
         config = "data/{run}/beers.config.yaml",
+        camparee_output = CAMPAREE_OUTPUT,
     resources:
         mem_mb = 6_000
     run:
@@ -99,7 +99,7 @@ rule run_beers:
         config_template = string.Template(open(input.config_template, "r").read())
         config_fill_values = dict()
         config_fill_values.update(run_configs[wildcards.run])
-        config_fill_values['camparee_output'] = input.camparee_output
+        config_fill_values['camparee_output'] = params.camparee_output
         config_fill_values['reference_genome'] = input.reference_genome
         config_fill_values.update(cfg['pos_3prime_bias'][config_fill_values['pos_3prime_bias']])
         config_fill_values.update(cfg['GC_bias'][config_fill_values['GC_bias']])
