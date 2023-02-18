@@ -20,7 +20,7 @@ BABY_GENOME = False
 if BABY_GENOME:
     CAMPAREE_CONFIG = 'config/baby_genome.camparee_config.yaml'
     REFERENCE_GENOME = '/home/thobr/BEERS2/CAMPAREE/resources/baby_genome.mm10/baby_genome.mm10.oneline_seqs.fa'
-    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data/'
+    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/CAMPAREE/data'
     CAMPAREE_DIR = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/baby_genome/run_1/'
     SALMON_INDEX = 'index/baby_mouse'
     # NOTE: we use the full annotations since baby genome is a subset. This is wasteful but works
@@ -29,7 +29,7 @@ if BABY_GENOME:
 else:
     CAMPAREE_CONFIG = 'config/camparee_config.yaml'
     REFERENCE_GENOME = '/project/itmatlab/for_tom/BEERS2_benchmark/resources/mm10/Mus_musculus.GRCm38.dna.oneline_seqs.fa'
-    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/CAMPAREE/data/'
+    CAMPAREE_OUTPUT = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/CAMPAREE/data'
     CAMPAREE_DIR = '/project/itmatlab/for_tom/BEERS2_benchmark/CAMPAREE_out/run_1/'
     SALMON_INDEX = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/index/'
     GENE_ANNOTATIONS = '/project/itmatlab/index/SALMON-1.9.0_indexes/GRCm38.ensemblv93/Mus_musculus.GRCm38.93.gtf.gz'
@@ -53,7 +53,7 @@ rule all:
     input:
         "results/seq_bias/fwd_seq_frequencies.png",
         "results/accuracy/",
-        "results/salmon_quants.txt",
+        "results/salmon_quants.parquet",
         "results/gc_content/",
         #"results/coverage/",
         "results/igv/url.txt",
@@ -247,11 +247,11 @@ rule gather_quants:
                         sample=sample_ids),
         gene_annotations = GENE_ANNOTATIONS,
     output:
-        salmon = "results/salmon_quants.txt",
-        beers_input = "results/beers_input_quants.txt",
-        beers_output = "results/beers_output_quants.txt",
+        salmon = "results/salmon_quants.parquet",
+        beers_input = "results/beers_input_quants.parquet",
+        beers_output = "results/beers_output_quants.parquet",
     resources:
-        mem_mb = 12_000
+        mem_mb = 48_000
     run:
         # Load transcript ID to gene ID mappings
         import gzip
@@ -275,57 +275,57 @@ rule gather_quants:
             quants.index = quants.index.map(lambda x: x.split(".")[0]) # Some annotations have ".###" at the end to indicate the version number - we remove those
             quants.index.name = "TranscriptID"
             quants['run'] = run
-            quants['GC_bias'] = run_configs[run]['GC_bias']
-            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
-            quants['primer_bias'] = run_configs[run]['primer_bias']
             quants['sample'] = sample
+            #quants['GC_bias'] = run_configs[run]['GC_bias']
+            #quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            #quants['primer_bias'] = run_configs[run]['primer_bias']
             quants['GC_correct'] = GC_correct == 'yes'
             quants['Pos_correct'] = Pos_correct == 'yes'
             quants['Seq_correct'] = Seq_correct == 'yes'
             salmon_quants.append(quants)
         salmon_quants = pandas.concat(salmon_quants, axis=0)
         salmon_quants['GeneID'] = salmon_quants.index.map(transcript_to_gene)
-        salmon_quants.to_csv(output.salmon, sep="\t")
+        salmon_quants.to_parquet(output.salmon)
 
         beers_input_quants = []
         for quant_file, (run, sample) in zip(input.beers_input_quants, itertools.product(run_ids, sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
             quants['run'] = run
             quants['sample'] = sample
-            quants['GC_bias'] = run_configs[run]['GC_bias']
-            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
-            quants['primer_bias'] = run_configs[run]['primer_bias']
+            #quants['GC_bias'] = run_configs[run]['GC_bias']
+            #quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            #quants['primer_bias'] = run_configs[run]['primer_bias']
             beers_input_quants.append(quants)
         beers_input_quants = pandas.concat(beers_input_quants, axis=0)
         beers_input_quants['TranscriptID'] = beers_input_quants.index.map(util.strip_beers_transcript_id)
         beers_input_quants['GeneID'] = beers_input_quants.TranscriptID.map(transcript_to_gene)
-        beers_input_quants.to_csv(output.beers_input, sep="\t")
+        beers_input_quants.to_parquet(output.beers_input)
 
         beers_output_quants = []
         for quant_file, (run, sample) in zip(input.beers_output_quants, itertools.product(run_ids, sample_ids)):
             quants = pandas.read_csv(quant_file, sep="\t", index_col=0)
             quants['run'] = run
             quants['sample'] = sample
-            quants['GC_bias'] = run_configs[run]['GC_bias']
-            quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
-            quants['primer_bias'] = run_configs[run]['primer_bias']
+            #quants['GC_bias'] = run_configs[run]['GC_bias']
+            #quants['pos_3prime_bias'] = run_configs[run]['pos_3prime_bias']
+            #quants['primer_bias'] = run_configs[run]['primer_bias']
             beers_output_quants.append(quants)
         beers_output_quants = pandas.concat(beers_output_quants, axis=0)
         beers_output_quants['TranscriptID'] = beers_output_quants.index.map(util.strip_beers_transcript_id)
         beers_output_quants['GeneID'] = beers_output_quants.TranscriptID.map(transcript_to_gene)
-        beers_output_quants.to_csv(output.beers_output, sep="\t")
+        beers_output_quants.to_parquet(output.beers_output)
 
 rule compare_accuracy:
     input:
-        salmon = "results/salmon_quants.txt",
-        beers_in = "results/beers_input_quants.txt",
-        beers_out = "results/beers_output_quants.txt",
+        salmon = "results/salmon_quants.parquet",
+        beers_in = "results/beers_input_quants.parquet",
+        beers_out = "results/beers_output_quants.parquet",
     output:
         dir = directory("results/accuracy/")
     resources:
         mem_mb = 24_000
     script:
-        "scripts/compare_accuracy.py"
+        "scripts/compare_accuracy_2.py"
 
 rule compute_gc_content:
     input:
