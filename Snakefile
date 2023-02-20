@@ -323,7 +323,7 @@ rule compare_accuracy:
     output:
         dir = directory("results/accuracy/")
     resources:
-        mem_mb = 24_000
+        mem_mb = 30_000
     script:
         "scripts/compare_accuracy_2.py"
 

@@ -7,13 +7,13 @@ import seaborn as sns
 import pylab
 
 
-lanes_used = [1]
-sample_ids = list(range(1,9))
-#run_configs = snakemake.config['run_configs']
-#lanes_used = snakemake.config['lanes_used']
-#sample_ids = snakemake.config['sample_ids']
+#lanes_used = [1]
+#sample_ids = list(range(1,9))
+lanes_used = snakemake.config['lanes_used']
+sample_ids = snakemake.config['sample_ids']
 
 bias_order = ["none", "med", "high"]
+#run_configs = snakemake.config['run_configs']
 #run_order = run_configs.keys()
 run_order = [
     'unbiased',
@@ -26,16 +26,16 @@ run_order = [
 ]
 MIN_NUM_READS = 100
 
-#out_dir = pathlib.Path(snakemake.output.dir)
-out_dir = pathlib.Path("results/compare_accuracy")
+out_dir = pathlib.Path(snakemake.output.dir)
+#out_dir = pathlib.Path("results/compare_accuracy")
 out_dir.mkdir(exist_ok=True)
 
-#input_files = snakemake.input
-input_files = dict(
-        salmon = "results/salmon_quants.txt",
-        beers_in = "results/beers_input_quants.txt",
-        beers_out = "results/beers_output_quants.txt",
-)
+input_files = snakemake.input
+#input_files = dict(
+#        salmon = "results/salmon_quants.parquet",
+#        beers_in = "results/beers_input_quants.parquet",
+#        beers_out = "results/beers_output_quants.parquet",
+#)
 salmon = pandas.read_parquet(input_files['salmon'])
 beers_in = pandas.read_parquet(input_files['beers_in'])
 beers_out = pandas.read_parquet(input_files['beers_out'])
@@ -89,20 +89,20 @@ count_corr = data.groupby(['sample', 'run', 'correction type']).apply(lambda x: 
 tpm_corr = data.groupby(['sample', 'run', 'correction type']).apply(lambda x: scipy.stats.spearmanr(x.TPM, x.true_tpm, nan_policy='omit')[0])
 
 ## Absolute median deviation - log2 scale
-count_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['NumReads'] + 1) / (x['true_count']+1))).median())
-tpm_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['TPM'] + 1) / (x['true_tpm']+1))).median())
-cpm_abs_med_dev = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['salmon_cpm'] + 1) / (x['true_cpm']+1))).median())
+count_abs_med_dev = data.groupby(['sample', 'run', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['NumReads'] + 1) / (x['true_count']+1))).median())
+tpm_abs_med_dev = data.groupby(['sample', 'run', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['TPM'] + 1) / (x['true_tpm']+1))).median())
+cpm_abs_med_dev = data.groupby(['sample', 'run', 'correction type']).apply(lambda x: numpy.abs(numpy.log2((x['salmon_cpm'] + 1) / (x['true_cpm']+1))).median())
 
 ## Median absolute relative difference (MARD)
 # Transcript-level MADR in both counts and TPMs compared to truth
 data['ARD_count'] = (data['NumReads'] - data['true_count']).abs() / (data['NumReads'] + data['true_count'] + 1e-10) # Small epislon means that it goes to zero properly
 data['ARD_cpm'] = (data['salmon_cpm'] - data['true_cpm']).abs() / (data['salmon_cpm'] + data['true_cpm'] + 1e-10)
 data['ARD_tpm'] = (data['TPM'] - data['true_tpm']).abs() / (data['TPM'] + data['true_tpm'] + 1e-10)
-MARD_count = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_count.mean()
+MARD_count = data.groupby(['sample', 'run', 'correction type']).ARD_count.mean()
 MARD_count.name = "MARD count"
-MARD_tpm = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_tpm.mean()
+MARD_tpm = data.groupby(['sample', 'run', 'correction type']).ARD_tpm.mean()
 MARD_tpm.name = "MARD TPM"
-MARD_cpm = data.groupby(['sample', 'run', 'GC_bias', 'pos_3prime_bias', 'primer_bias', 'GC_correct', 'Pos_correct', 'Seq_correct', 'correction type']).ARD_cpm.mean()
+MARD_cpm = data.groupby(['sample', 'run', 'correction type']).ARD_cpm.mean()
 MARD_cpm.name = "MARD CPM"
 
 # Gather all the summary stats together and save to disk
@@ -115,72 +115,23 @@ stats = pandas.DataFrame({
     "MARD_count":  MARD_count,
     "MARD_cpm": MARD_cpm,
     "MARD_tpm": MARD_tpm,
-}).reset_index()
+})
+stats_keys = stats.columns
+stats = stats.reset_index()
 stats.to_csv(out_dir / "summary_stats.txt", sep="\t", index=None)
 
 #### PLOTS ####
-
-# Plot correlation summary stats
-fig = sns.catplot(
-    data=stats,
-    x="correction type",
-    y="count_corr",
-    order = correction_type_order,
-    col = "run",
-    col_order = run_order,
-    col_wrap = 3,
-)
-[tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-fig.savefig(out_dir / "count_corr.png", dpi=300)
-
-# Plot TPM correlation summary stats
-fig = sns.catplot(
-    data=stats,
-    x="correction type",
-    y="tpm_corr",
-    order = correction_type_order,
-    col = "run",
-    col_order = run_order,
-    col_wrap = 3,
-)
-[tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-fig.savefig(out_dir / "tpm_corr.png", dpi=300)
-
-# Plot abs med dev summary stats
-fig = sns.catplot(
-    data=stats,
-    x="correction type",
-    y="count_abs_med_dev",
-    order = correction_type_order,
-    col = "run",
-    col_order = run_order,
-    col_wrap = 3,
-)
-[tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-fig.savefig(out_dir / "count_abs_med_dev.png", dpi=300)
-
-# Plot TPM abs med dev summary stats
-fig = sns.catplot(
-    data=stats,
-    x="correction type",
-    y="tpm_abs_med_dev",
-    order = correction_type_order,
-    col = "run",
-    col_order = run_order,
-    col_wrap = 3,
-)
-[tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-fig.savefig(out_dir / "tpm_abs_med_dev.png", dpi=300)
-
-# Plot CPM abs med dev summary stats
-fig = sns.catplot(
-    data=stats,
-    x="correction type",
-    y="cpm_abs_med_dev",
-    order = correction_type_order,
-    col = "run",
-    col_order = run_order,
-    col_wrap = 3,
-)
-[tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-fig.savefig(out_dir / "cpm_abs_med_dev.png", dpi=300)
+for stat in stats_keys:
+    # Plot correlation summary stats
+    fig = sns.catplot(
+        data=stats,
+        x="correction type",
+        y=stat,
+        order = correction_type_order,
+        col = "run",
+        col_order = run_order,
+        col_wrap = 3,
+        sharey=False,
+    )
+    [tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
+    fig.savefig(out_dir / f"{stat}.png", dpi=300)
