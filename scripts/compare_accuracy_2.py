@@ -3,8 +3,6 @@ import pathlib
 import numpy
 import scipy.stats
 import pandas
-import seaborn as sns
-import pylab
 
 
 #lanes_used = [1]
@@ -70,7 +68,6 @@ data['salmon_cpm'] = data.groupby(['sample','run'], group_keys=False)['NumReads'
 print(data.head())
 print(data.shape)
 
-correction_type_order = ['baseline', 'Seq', 'Pos', 'Pos Seq', 'GC', 'GC Seq', 'GC Pos', 'GC Pos Seq']
 def correction_type(row):
     ''' Summarize all Salmon correction options in one string '''
     corrections = [correction for correction in ['GC', 'Pos', 'Seq'] if row[f'{correction}_correct']]
@@ -118,20 +115,4 @@ stats = pandas.DataFrame({
 })
 stats_keys = stats.columns
 stats = stats.reset_index()
-stats.to_csv(out_dir / "summary_stats.txt", sep="\t", index=None)
-
-#### PLOTS ####
-for stat in stats_keys:
-    # Plot correlation summary stats
-    fig = sns.catplot(
-        data=stats,
-        x="correction type",
-        y=stat,
-        order = correction_type_order,
-        col = "run",
-        col_order = run_order,
-        col_wrap = 3,
-        sharey=False,
-    )
-    [tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
-    fig.savefig(out_dir / f"{stat}.png", dpi=300)
+stats.to_csv(snakemake.input.stats_file, sep="\t", index=None)

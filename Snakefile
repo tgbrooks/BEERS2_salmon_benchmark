@@ -52,7 +52,7 @@ wildcard_constraints:
 rule all:
     input:
         "results/seq_bias/fwd_seq_frequencies.png",
-        "results/accuracy/",
+        "results/accuracy/plots",
         "results/salmon_quants.parquet",
         "results/gc_content/",
         #"results/coverage/",
@@ -321,11 +321,19 @@ rule compare_accuracy:
         beers_in = "results/beers_input_quants.parquet",
         beers_out = "results/beers_output_quants.parquet",
     output:
-        dir = directory("results/accuracy/")
+        stats_file = "results/accuracy/summary_stats.txt"
     resources:
         mem_mb = 30_000
     script:
         "scripts/compare_accuracy_2.py"
+
+rule plot_accuracy:
+    input:
+        stats_file = "results/accuracy/summary_stats.txt"
+    output:
+        outdir = directory("results/accuracy/plots")
+    script:
+        "scripts/plot_compare_accuracy.py"
 
 rule compute_gc_content:
     input:
