@@ -24,10 +24,6 @@ run_order = [
 ]
 MIN_NUM_READS = 100
 
-out_dir = pathlib.Path(snakemake.output.dir)
-#out_dir = pathlib.Path("results/compare_accuracy")
-out_dir.mkdir(exist_ok=True)
-
 input_files = snakemake.input
 #input_files = dict(
 #        salmon = "results/salmon_quants.parquet",
@@ -115,4 +111,4 @@ stats = pandas.DataFrame({
 })
 stats_keys = stats.columns
 stats = stats.reset_index()
-stats.to_csv(snakemake.input.stats_file, sep="\t", index=None)
+stats.to_csv(snakemake.output.stats_file, sep="\t", index=None)
