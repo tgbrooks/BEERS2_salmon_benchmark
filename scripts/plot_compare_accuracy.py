@@ -37,6 +37,17 @@ for stat in stats_keys:
         col_order = run_order,
         col_wrap = 3,
         sharey=False,
+        kind = "box",
+        height = 2.5,
     )
     [tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
+    Range = 0
+    for ax in fig.axes.flatten():
+        m,M = ax.get_ylim()
+        Range = max(Range, (M-m)/2)
+    for ax in fig.axes.flatten():
+        m, M = ax.get_ylim()
+        mid = (m + M)/2
+        ax.set_ylim( mid - Range, mid+Range)
+    fig.set_titles(col_template="{col_name}")
     fig.savefig(outdir / f"{stat}.png", dpi=300)

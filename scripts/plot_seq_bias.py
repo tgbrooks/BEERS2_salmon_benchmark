@@ -33,8 +33,9 @@ fig = sns.relplot(
         data = frequencies.query("read_direction == 'fwd'"),
         kind = 'line',
         hue_order = BASES,
+        height = 2.5,
 )
-fig.savefig(snakemake.output.fwd_frequencies)
+fig.savefig(snakemake.output.fwd_frequencies, dpi=300)
 
 fig = sns.relplot(
         x = 'position',
@@ -45,5 +46,6 @@ fig = sns.relplot(
         data = frequencies.query("read_direction == 'rev'"),
         kind = 'line',
         hue_order = BASES,
+        height = 2.5,
 )
-fig.savefig(snakemake.output.rev_frequencies)
+fig.savefig(snakemake.output.rev_frequencies, dpi=300)
