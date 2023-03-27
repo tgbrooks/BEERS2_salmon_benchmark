@@ -40,6 +40,15 @@ for stat in stats_keys:
         kind = "box",
         height = 2.5,
     )
+    fig.map_dataframe(
+        sns.swarmplot,
+        x="correction type",
+        y=stat,
+        order = correction_type_order,
+        alpha = 0.8,
+        color = "black",
+        size = 3,
+    )
     [tick.set_rotation(90) for ax in fig.axes.flatten() for tick in ax.get_xticklabels()]
     Range = 0
     for ax in fig.axes.flatten():
