@@ -58,6 +58,7 @@ rule all:
         #"results/coverage/",
         "results/igv/url.txt",
         "results/pos_cov/",
+        "publication/dataset/",
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -590,3 +591,17 @@ rule make_igv_view:
         (out_dir / "url.txt").write_text(URLS)
         print("Uploaded sessions to:")
         print(URLS)
+
+rule aggregate_for_sharing:
+    input:
+        bam_files = expand("data/{run}/sample{sample}/BEERS_output.bam", run=run_ids, sample=sample_ids)
+    output:
+        directory("publication/dataset/")
+    run:
+        outdir = pathlib.Path(output[0])
+        outdir.mkdir(exist_ok=True)
+        for run in run_ids:
+            for sample in sample_ids:
+                bam_file = pathlib.Path(f"data/{run}/sample{sample}/BEERS_output.bam").resolve()
+                out_file = outdir / f"BEERS_output.{run}.sample{sample}.bam"
+                shell(f"ln -s {bam_file} {out_file}")
