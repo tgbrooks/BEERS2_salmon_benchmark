@@ -5,6 +5,8 @@ module load salmon-v1.9.0
 module load STAR-v2.7.9a
 module load samtools/1.11
 module load htslib/1.11
+module load gcc/10.2.0
+module load R/4.2
 source venv/bin/activate
 
 

@@ -59,6 +59,8 @@ rule all:
         "results/igv/url.txt",
         "results/pos_cov/",
         "publication/dataset/",
+        expand("results/tximport/spreadsheet/tximported.numReads.{run}.GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}.txt",
+            run = run_ids, GC_correct = GC_corrects, Pos_correct=Pos_corrects, Seq_correct=Seq_corrects),
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -605,3 +607,16 @@ rule aggregate_for_sharing:
                 bam_file = pathlib.Path(f"data/{run}/sample{sample}/BEERS_output.bam").resolve()
                 out_file = outdir / f"BEERS_output.{run}.sample{sample}.bam"
                 shell(f"ln -s {bam_file} {out_file}")
+
+rule run_tximport:
+    input:
+        gtf = GENE_ANNOTATIONS,
+        quants = expand("data/{{run}}/sample{sample}/salmon/GC_correct={{GC_correct}}.Pos_correct={{Pos_correct}}.Seq_correct={{Seq_correct}}/quant.sf", sample=sample_ids)
+    params:
+        sample_ids = sample_ids
+    output:
+        quant_file = "results/tximport/spreadsheet/tximported.numReads.{run}.GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}.txt"
+    resources:
+        mem_mb = 6_000
+    script:
+        "scripts/run_tximport.R"
