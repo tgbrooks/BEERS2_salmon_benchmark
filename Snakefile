@@ -59,8 +59,7 @@ rule all:
         "results/igv/url.txt",
         "results/pos_cov/",
         "publication/dataset/",
-        expand("results/tximport/spreadsheet/tximported.numReads.{run}.GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}.txt",
-            run = run_ids, GC_correct = GC_corrects, Pos_correct=Pos_corrects, Seq_correct=Seq_corrects),
+        "results/tximport/all_values.parquet",
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -620,3 +619,37 @@ rule run_tximport:
         mem_mb = 6_000
     script:
         "scripts/run_tximport.R"
+
+rule gather_tximport:
+    input:
+        quant_file = expand("results/tximport/spreadsheet/tximported.numReads.{run}.GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}.txt", run=run_ids, GC_correct=GC_corrects, Pos_correct=Pos_corrects, Seq_correct=Seq_corrects),
+    output:
+        quant_file = "results/tximport/all_values.parquet"
+    resources:
+        mem_mb = 6_000
+    run:
+        import pandas
+        results = []
+        for run in run_ids:
+            for GC_correct in GC_corrects:
+                for Pos_correct in Pos_corrects:
+                    for Seq_correct in Seq_corrects:
+                        df = pandas.read_csv(f"results/tximport/spreadsheet/tximported.numReads.{run}.GC_correct={GC_correct}.Pos_correct={Pos_correct}.Seq_correct={Seq_correct}.txt", sep="\t")
+                        df['run'] = run
+                        df['GC_correct'] = GC_correct
+                        df['Pos_correct'] = Pos_correct
+                        df['Seq_correct'] = Seq_correct
+                        results.append(df)
+        results = pandas.concat(results)
+        results.to_parquet(output.quant_file)
+
+rule assess_tximport:
+    input:
+        quant_file = "results/tximport/all_values.parquet",
+        "results/salmon_quants.parquet",
+        "results/beers_input_quants.parquet",
+        "results/beers_output_quants.parquet",
+    output:
+        directory("results/tximport/assessment/")
+    script:
+        "scripts/assess_tximport.py"
