@@ -1,5 +1,6 @@
 import polars as pl
 import gtfparse
+import seaborn as sns
 
 sample_ids = list(range(1,9))
 
@@ -100,16 +101,22 @@ data = data.drop_nulls("TPM") \
 
 corr = data.groupby(["run", "sample", "GC_correct", "Pos_correct", "Seq_correct"])\
         .agg(pl.spearman_rank_corr("true_tpm", "TPM").alias("corr"))
+def MARD(col1, col2):
+    A = pl.col(col1)
+    B = pl.col(col2)
+    return ((A - B).abs() /(A + B).abs()).drop_nans().mean()
+mard = data.groupby(["run", "sample", "GC_correct", "Pos_correct", "Seq_correct"])\
+        .agg(MARD("true_tpm", "TPM").alias("MARD"))
 
 ## Draw plots
-## Compare no-correct vs all-correct
+## Compare correlation no-correct vs all-correct
 comparison = pl.concat([
     corr.filter(pl.col("GC_correct") & pl.col("Pos_correct") & pl.col("Seq_correct"))
         .select("run", "sample", "corr", pl.lit(True).alias("corrected")),
     corr.filter(~pl.col("GC_correct") & ~pl.col("Pos_correct") & ~pl.col("Seq_correct"))
         .select("run", "sample", "corr", pl.lit(False).alias("corrected")),
     ])
-import seaborn as sns
+
 fig = sns.catplot(
     comparison.to_pandas(),
     y = "run",
@@ -118,6 +125,25 @@ fig = sns.catplot(
     order = run_order,
     kind = "box",
 )
-sns.swarmplot(comparison.to_pandas(), y="run", x="corr", hue="corrected", order=run_order, color="k", size=3, dodge=True, legend=False)
+sns.swarmplot(comparison.to_pandas(), y="run", x="corr", hue="corrected", order=run_order, palette="dark:k", size=3, dodge=True, legend=False)
 fig.savefig(out_dir / "corrected_vs_uncorrected.spearman_correlation.png", dpi=300)
+
+## Compare MARD no-correct vs all-correct
+mard_comparison = pl.concat([
+    mard.filter(pl.col("GC_correct") & pl.col("Pos_correct") & pl.col("Seq_correct"))
+        .select("run", "sample", "MARD", pl.lit(True).alias("corrected")),
+    mard.filter(~pl.col("GC_correct") & ~pl.col("Pos_correct") & ~pl.col("Seq_correct"))
+        .select("run", "sample", "MARD", pl.lit(False).alias("corrected")),
+    ])
+
+fig = sns.catplot(
+    mard_comparison.to_pandas(),
+    y = "run",
+    x = "MARD",
+    hue = "corrected",
+    order = run_order,
+    kind = "box",
+)
+sns.swarmplot(mard_comparison.to_pandas(), y="run", x="MARD", hue="corrected", order=run_order, palette="dark:k", size=3, dodge=True, legend=False)
+fig.savefig(out_dir / "corrected_vs_uncorrected.MARD.png", dpi=300)
 

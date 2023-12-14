@@ -60,6 +60,8 @@ rule all:
         "results/pos_cov/",
         "publication/dataset/",
         "results/tximport/all_values.parquet",
+        "results/beers.true_TPM.parquet",
+        "results/pcr_dupes/pcr_dupes.png",
         beers_input_quants = expand("data/{run}/sample{sample}/input_quant.txt",
                     run = run_ids,
                     sample = sample_ids),
@@ -316,6 +318,18 @@ rule gather_quants:
         beers_output_quants['TranscriptID'] = beers_output_quants.index.map(util.strip_beers_transcript_id)
         beers_output_quants['GeneID'] = beers_output_quants.TranscriptID.map(transcript_to_gene)
         beers_output_quants.to_parquet(output.beers_output)
+
+rule simplify_quants:
+    input:
+        beers_in = "results/beers_input_quants.parquet",
+        beers_out = "results/beers_output_quants.parquet",
+    output:
+        beers_in = "results/beers.true_TPM.parquet",
+        beers_out = "results/beers.true_read_counts.parquet",
+    resources:
+        mem_mb = 6_000
+    script:
+        "scripts/simplify_quants.py"
 
 rule compare_accuracy:
     input:
@@ -607,6 +621,11 @@ rule aggregate_for_sharing:
                 out_file = outdir / f"BEERS_output.{run}.sample{sample}.bam"
                 shell(f"ln -s {bam_file} {out_file}")
 
+                for read in [1,2]:
+                    fastq_file = pathlib.Path(f"data/{run}/beers/results/S{sample}_L1_R{read}.fastq").resolve()
+                    out_file = outdir / f"BEERS_output.{run}.sample{sample}.R{read}.fastq"
+                    shell(f"ln -s {fastq_file} {out_file}")
+
 rule run_tximport:
     input:
         gtf = GENE_ANNOTATIONS,
@@ -646,10 +665,42 @@ rule gather_tximport:
 rule assess_tximport:
     input:
         quant_file = "results/tximport/all_values.parquet",
-        "results/salmon_quants.parquet",
-        "results/beers_input_quants.parquet",
-        "results/beers_output_quants.parquet",
+        salmon = "results/salmon_quants.parquet",
+        input_quants = "results/beers_input_quants.parquet",
+        out_quants = "results/beers_output_quants.parquet",
     output:
         directory("results/tximport/assessment/")
     script:
         "scripts/assess_tximport.py"
+
+rule gene_level_comparison:
+    input:
+       "results/salmon_quants.parquet",
+       "results/beers_input_quants.parquet",
+       GENE_ANNOTATIONS,
+       SALMON_INDEX,
+    output:
+        directory("results/compare_gene_accuracy")
+    script:
+        "scripts/gene_level_comparison.py"
+
+rule compute_pcr_dupes:
+    input:
+        flag_file = "data/{run}/beers/finished_flag",
+    output:
+        pcr_dupes = "data/{run}/pcr_dupes.txt",
+    resources:
+        mem_mb = 12_000
+    script:
+        "scripts/compute_pcr_dupes.py"
+
+rule plot_pcr_dupes:
+    input:
+        pcr_dupes = expand("data/{run}/pcr_dupes.txt", run=run_configs.keys()),
+    output:
+        pcr_dupes = "results/pcr_dupes/pcr_dupes.png",
+    params:
+        runs = list(run_configs.keys())
+    script:
+        "scripts/plot_pcr_dupes.py"
+
